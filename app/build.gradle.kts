@@ -1,3 +1,9 @@
+import java.net.URI
+import java.io.File
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+import java.security.MessageDigest
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -12,8 +18,9 @@ android {
         applicationId = "com.barebonesdownloader.android"
         minSdk = 29
         targetSdk = 36
-        versionCode = 3
-        versionName = "0.2.0"
+        versionCode = 5
+        versionName = "0.3.0"
+        buildConfigField("String", "EXTRACTOR_SHA256", "\"e51e69e89489f199530f13d32a4342da3ddb2cf34842f364603a066db05afbf3\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildFeatures { compose = true; buildConfig = true }
@@ -69,3 +76,30 @@ tasks.withType<Test>().configureEach {
     maxHeapSize = "1536m"
     doFirst { testHome.mkdirs() }
 }
+
+// Official, immutable extractor release. Downloaded only while building, never by the app.
+val extractorResources = layout.buildDirectory.dir("generated/pinned-extractor-res")
+val extractorFile = extractorResources.map { it.file("raw/ytdlp") }
+val extractorDigest = "e51e69e89489f199530f13d32a4342da3ddb2cf34842f364603a066db05afbf3"
+val preparePinnedExtractor by tasks.registering {
+    inputs.property("version", "2026.10.26")
+    inputs.property("sha256", extractorDigest)
+    outputs.file(extractorFile)
+    doLast {
+        val target = extractorFile.get().asFile
+        fun digest(file: File) = MessageDigest.getInstance("SHA-256").digest(file.readBytes()).joinToString("") { "%02x".format(it) }
+        if (!target.exists() || digest(target) != extractorDigest) {
+            target.parentFile.mkdirs()
+            val partial = File(target.parentFile, "ytdlp.download")
+            try {
+                val connection = URI("https://github.com/yt-dlp/yt-dlp/releases/download/2026.10.26/yt-dlp").toURL().openConnection()
+                connection.connectTimeout = 30_000; connection.readTimeout = 60_000
+                connection.getInputStream().use { input -> partial.outputStream().use(input::copyTo) }
+                check(digest(partial) == extractorDigest) { "The pinned extractor checksum did not match. No binary was bundled." }
+                Files.move(partial.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
+            } finally { partial.delete() }
+        }
+    }
+}
+android.sourceSets.getByName("main").res.srcDir(extractorResources)
+tasks.named("preBuild").configure { dependsOn(preparePinnedExtractor) }

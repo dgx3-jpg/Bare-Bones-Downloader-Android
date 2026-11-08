@@ -44,6 +44,33 @@ class NativeIntegrationTest {
         YtDlpGateway(runtime, app.diagnostics).validate(item, fixture)
         assertTrue(fixture.length() > 0)
     }
+    @Test fun eEveryAudioFormatAndExplicitEncodingModeDecodes() = runBlocking {
+        val runtime = app.runtime
+        withContext(Dispatchers.IO) { runtime.initialize() }
+        val input = File(app.cacheDir, "owned-pcm.wav")
+        runtime.execute(UUID.randomUUID(), runtime.ffmpeg, listOf("-v", "error", "-nostdin", "-y", "-f", "lavfi", "-i", "sine=frequency=660:sample_rate=44100", "-t", "1", "-ac", "2", "-c:a", "pcm_s16le", input.path))
+        val converter = com.barebonesdownloader.android.media.AudioConverter(runtime)
+        val cases = AudioFormat.entries.map { AppSettings(audioFormat = it) } +
+            AudioFormat.entries.filter { it.variable }.flatMap { format -> listOf(0, 10).map { AppSettings(audioFormat = format, qualityMode = QualityMode.VARIABLE, variableQuality = it) } } +
+            AudioFormat.entries.filter { it.bitrate }.map { AppSettings(audioFormat = it, qualityMode = QualityMode.BITRATE, bitrateKbps = 160) }
+        var aac: File? = null
+        cases.forEachIndexed { index, settings ->
+            val item = DownloadItem(sourceUrl = "owned-fixture", settingsSnapshot = settings)
+            val output = converter.convert(item, input, File(app.cacheDir, "format-$index"))
+            runtime.execute(item.id, runtime.ffmpeg, listOf("-v", "error", "-nostdin", "-i", output.path, "-f", "null", "-"))
+            if (settings.audioFormat == AudioFormat.ORIGINAL) assertEquals(input, output)
+            if (settings.audioFormat == AudioFormat.AAC && settings.qualityMode == QualityMode.DEFAULT) aac = output
+            Log.i("BBD_INTEGRATION", "DECODED ${settings.audioFormat} ${settings.qualityMode} q=${settings.variableQuality} bytes=${output.length()}")
+        }
+        val compatible = DownloadItem(sourceUrl = "owned-fixture", settingsSnapshot = AppSettings(audioFormat = AudioFormat.AAC))
+        assertEquals(aac, converter.convert(compatible, aac!!, File(app.cacheDir, "compatible-copy")))
+        val explicit = compatible.copy(id = UUID.randomUUID(), settingsSnapshot = compatible.settingsSnapshot.copy(qualityMode = QualityMode.VARIABLE))
+        assertNotEquals(aac, converter.convert(explicit, aac!!, File(app.cacheDir, "explicit-reencode")))
+        val video = File(app.cacheDir, "owned-av-fixture.mp4")
+        val gateway = YtDlpGateway(runtime, app.diagnostics)
+        gateway.validate(DownloadItem(sourceUrl = "fixture", kind = DownloadKind.VIDEO, settingsSnapshot = AppSettings(videoMaxHeight = 360)), video)
+        assertTrue(runCatching { gateway.validate(DownloadItem(sourceUrl = "fixture", kind = DownloadKind.VIDEO, settingsSnapshot = AppSettings(videoMaxHeight = 60)), video) }.exceptionOrNull() is IllegalArgumentException)
+    }
     @Test fun bCancellationTerminatesNativeDescendant() = runBlocking {
         val runtime = app.runtime; val id = UUID.randomUUID(); val child = CompletableDeferred<Int>()
         val command = "import subprocess,sys,time; p=subprocess.Popen([sys.executable,'-c','import time;time.sleep(90)']); print('CHILD='+str(p.pid),flush=True); time.sleep(90)"

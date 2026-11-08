@@ -1,6 +1,11 @@
 package com.barebonesdownloader.android.download
 
 import android.content.Context
+import com.barebonesdownloader.android.BuildConfig
+import com.barebonesdownloader.android.R
+import java.security.MessageDigest
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import android.system.Os
 import android.system.OsConstants
 import com.yausername.youtubedl_android.YoutubeDL
@@ -32,6 +37,15 @@ class NativeRuntime(private val context: Context) {
     @Synchronized fun initialize() {
         if (initialized) return
         YoutubeDL.init(context); FFmpeg.init(context)
+        fun digest(file: File) = MessageDigest.getInstance("SHA-256").digest(file.readBytes()).joinToString("") { "%02x".format(it) }
+        if (!ytdlp.isFile || digest(ytdlp) != BuildConfig.EXTRACTOR_SHA256) {
+            val replacement = File(ytdlp.parentFile, "yt-dlp.replacement")
+            try {
+                context.resources.openRawResource(R.raw.ytdlp).use { input -> replacement.outputStream().use(input::copyTo) }
+                require(digest(replacement) == BuildConfig.EXTRACTOR_SHA256) { "Bundled extractor verification failed. Reinstall this APK." }
+                Files.move(replacement.toPath(), ytdlp.toPath(), StandardCopyOption.REPLACE_EXISTING)
+            } finally { replacement.delete() }
+        }
         require(listOf(python, ffmpeg, ffprobe, quickJs, ytdlp).all { it.isFile && it.length() > 0 }) { "Native runtime is missing for this device ABI. Reinstall the matching APK." }
         initialized = true
     }

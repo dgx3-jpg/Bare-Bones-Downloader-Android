@@ -51,7 +51,7 @@ class QueueRepositoryTest {
             val visits = mutableListOf<String>(); var writable = false
             val gateway = object : MediaGateway {
                 override fun cancel(item: DownloadItem) {}
-                override suspend fun download(item: DownloadItem, directory: File, progress: (Int?) -> Unit): StagedMedia {
+                override suspend fun download(item: DownloadItem, directory: File, progress: (MediaProgress) -> Unit): StagedMedia {
                     visits += item.mediaId!!
                     if (visits.size == 1) error("Simulated network failure")
                     directory.mkdirs(); val file = File(directory, "fixture.m4a").apply { writeBytes(byteArrayOf(1,2,3)) }

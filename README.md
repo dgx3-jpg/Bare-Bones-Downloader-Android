@@ -1,8 +1,8 @@
 # Bare Bones Downloader for Android
 
-Native Kotlin / Compose Android app following [design v2](ANDROID_DOWNLOADER_SPEC.md), with the [desktop app](https://github.com/dgx3-jpg/BareBonesDownloader) as its behavior/visual reference. Package ID `com.barebonesdownloader.android`, Android 10+ (API 29), current milestone-2 candidate **0.2.0 / code 3**.
+Native Kotlin / Compose Android app following [design v2](ANDROID_DOWNLOADER_SPEC.md), with the [desktop app](https://github.com/dgx3-jpg/BareBonesDownloader) as its behavior/visual reference. Package ID `com.barebonesdownloader.android`, Android 10+ (API 29), current milestones-2-and-3 candidate **0.3.0 / code 5**.
 
-**Verification limit:** the live YouTube acceptance gate is blocked in CI by “Sign in to confirm you're not a bot.” No successful YouTube download/save is claimed. The app does not implement login, cookie imports or evasion. See [implementation status](IMPLEMENTATION_STATUS.md) for exact passing tests and blocked checks. Milestone 3 remains pending the milestone-2 gate or an explicit instruction to proceed with that limit.
+**Verification limit:** the live YouTube acceptance gate is blocked in CI by “Sign in to confirm you're not a bot.” No successful YouTube download/save is claimed. The app does not implement login, cookie imports or evasion. See [implementation status](IMPLEMENTATION_STATUS.md) for exact passing tests and blocked checks. The owner authorized continuing milestone 3 with this live-verification limit recorded.
 
 ## Build / APK
 
@@ -24,17 +24,17 @@ Windows: `gradlew.bat`. Gradle 8.13 is checksum-verified; AGP 8.13.2, Kotlin 2.2
 - Room-backed FIFO and history, one worker, source+kind duplicate reservations, immutable per-job settings. Explicit Resume/Retry after restart; interrupted work is never marked completed. A failed job releases its reservation and does not stop later jobs.
 - User-initiated data-sync foreground service with progress/cancel notification, process-group cancellation, bounded wake lock and private staging. Notification denial is handled. Android/OEM background limits still apply.
 - Separate persisted SAF folders; only the relevant type is required. Revoked/unavailable destination pauses FIFO. Explicit replacement repairs matching waiting jobs of that type. No all-files permission.
-- yt-dlp/Python/QuickJS and FFmpeg/ffprobe from `youtubedl-android` 0.18.1. Stream-copy best-source audio and compatible H.264/AAC MP4 pipeline; output validated before SAF publication, copied bytes verified, incomplete destination removed on failure. Existing filenames are skipped, never intentionally overwritten. SAF providers do not universally provide atomic publication.
+- Python/QuickJS and FFmpeg/ffprobe from `youtubedl-android` 0.18.1, with checksum-pinned official yt-dlp 2026.10.26. Stream-copy best-source audio and compatible H.264/AAC MP4 pipeline; output validated before SAF publication, copied bytes verified, incomplete destination removed on failure. Existing filenames are skipped, never intentionally overwritten. SAF providers do not universally provide atomic publication.
 - Unicode-safe, bounded title filenames; audio omits source ID, video includes it; optional canonical URL suffix.
 
-Format/quality/resolution preferences for M3 are present, but **this M2 candidate explicitly rejects non-default audio encoding and non-default video resolution**, rather than ignoring them. Size caps are explicitly blocked until M4. Metadata selection and ReplayGain processing are M5; audio completes with a visible warning that source tags may remain. Video skips those audio-only operations. No actual conversion/tag/ReplayGain success is implied by a preference control.
+All nine audio formats are implemented: Best available, AAC/M4A, ALAC, FLAC, M4A/AAC, MP3, Opus, Vorbis and PCM16 WAV. Default preserves compatible streams; explicit variable-quality/bitrate modes encode with the selected codec. Unsupported encoder/mode/bitrate combinations fail clearly. MP3 caps at 320 kbps; variable quality 10 maps to LAME 9. Seven video resolution ceilings constrain both separate-stream and combined fallbacks; actual output height/codecs/container are validated. Size caps are explicitly blocked until M4. Metadata selection and ReplayGain processing are M5; audio completes with a visible warning that source tags may remain. Video skips those audio-only operations. No actual conversion/tag/ReplayGain success is implied by a preference control.
 
 ## Native testing
 
 With an API 29+ emulator/device connected:
 
 ```sh
-# Native owned AV fixture, process-group cancellation, and real SAF/collision/cleanup checks:
+# Native owned AV/audio-format fixtures, process-group cancellation, and real SAF checks:
 ./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.barebonesdownloader.android.NativeIntegrationTest
 # Optional live extraction + saving (site availability/authentication restrictions may block it):
 bash tools/run-native-tests.sh true

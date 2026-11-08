@@ -1,19 +1,17 @@
-# Desktop parity — milestone 1, design v2
+# Desktop parity — milestones 1–3, design v2
 
-Desktop source: `dgx3-jpg/BareBonesDownloader`, current default-branch sources inspected 2026-11-08. The design records audited tree `e53be3c92d8697b2acb1c5974c1650b473dc9261`; this comparison inspected the named files on the default branch rather than claiming that tree was checked out. No desktop code was modified.
+Reference: `dgx3-jpg/BareBonesDownloader`, audited in design v2. No desktop code was modified. This map describes implemented counterparts; runtime evidence and limits are in [implementation status](../IMPLEMENTATION_STATUS.md).
 
-| Desktop source / behavior | Android shell implementation | Actual automated coverage / remaining work |
+| Desktop behavior | Android counterpart | Verification / remaining scope |
 | --- | --- | --- |
-| DownloaderForm: mode, input, queue controls, log | MainScreen/DownloaderViewModel; URL/Type/Status cards; mode-specific folders/actions; bounded/copy log; placeholder cancel/clear | UI tests cover mode/input/prompt cancellation; ViewModel tests cover mixed input and 60,000-char log cap. Real FIFO/duplicates/worker/folder recovery deferred to M2/M4. |
-| YoutubeUrl: strict single-item parsing | HTTP(S) shell validation only | Basic validation test; strict YouTube/source IDs/live/collection rejection deferred to M2. |
-| SettingsForm/SettingsStore: five sections, independent destinations, snapshots, validation | General/Audio/Video/Metadata/Appearance, Save/Cancel draft, DataStore normalization, snapshot model | Default/corruption/normalization, draft Save/Cancel, real disk reopen and Room round-trip tests. Native folder grant/provider behavior not device-tested. |
-| AudioFormats/AudioEncoding: nine choices, supported modes | Nine preference choices; default, variable 0–10, bitrate 32–512; desktop capability matrix disables unsupported modes | Model tests cover Opus/ALAC/Vorbis capabilities and unsupported-mode normalization. Actual encoders/copy semantics M3. |
-| MusicMetadata/OnlineMetadata: 11 fields, sample, source/Topic/tag/Apple fallback | All 11 fields on; live static Here Comes the Sun preview; format-specific Unavailable labels | Model/UI preview tests. Actual enrichment, tag writing/removal/read-back and catalogue confidence M5. No lookup implemented. |
-| MediaSizeLimiter: independent caps | Separate audio/video 0–16384 decimal-MB preferences and explanatory UI | Settings persistence/snapshot/default tests; real budgeting/transcode/retry/strict-size verification M4. |
-| VideoOutput: H.264/AAC MP4, resolution | Video mode, separate folder, seven resolution options, size cap; snapshots | Model/Room type and destination snapshot tests; codec/media verification M2/M3. No actual video output. |
-| DownloadFiles/ProcessJob: staging, cancellation, publication, recovery | Schema/repository boundary only; cancellation changes placeholders | No subprocess or destination partial exists. Actual cancellation/staging/publication/recovery M2/M4. |
-| AppTheme/Penrose SVG: identity and Light/Dark | Explicit persisted Light/Dark, dark palette, exact SVG-derived adaptive icon | Theme choice persistence/Save/Cancel tested; resources compile. Launcher rendering, contrast/TalkBack/scaling on device remain manual. |
-| Desktop tests | Kotlin model/ViewModel/DataStore/Room/UI tests, Android navigation smoke test | JVM/Robolectric results recorded in IMPLEMENTATION_STATUS; device test compiled, not device-verified. No full parity claim. |
-| Android packaging addition | minSdk 29; com.barebonesdownloader.android; workflow builds/tests/uploads APK | Local debug APK/test results in status; [Actions build/upload verified](https://github.com/dgx3-jpg/Bare-Bones-Downloader-Android/actions/runs/42476569402/attempts/2); artifact links are in implementation status. Stable CI signing is cache-dependent; durable signing M6. |
+| DownloaderForm / YoutubeUrl | Compose main screen, strict canonical single-item YouTube parser, mixed-input retention, persistent FIFO and duplicate reservations | JVM/UI/Room tests; actual native and SAF tests. Live YouTube authentication blocked an older-extractor CI run. |
+| SettingsForm / SettingsStore | Five draft sections, Save/Cancel, DataStore normalization, immutable per-job snapshots, independent SAF folders | Persistence, Room migration, UI tests and real DocumentsUI grant/read-back |
+| AudioFormats / AudioEncoding | All nine formats, default compatible copy, explicit quality/bitrate encoding with actual encoder checks | Native owned-media encode/decode matrix; results in status. No quality improvement claim. |
+| VideoOutput | H.264/AAC MP4 selectors, all seven height ceilings, actual codec/container/height validation | Owned H.264/AAC fixture and height rejection; live extraction remains separate |
+| DownloadFiles / ProcessJob | Private staging, one foreground worker, cancellation of process descendants, verified SAF copy, collision skip, interrupted recovery | Native cancellation and real SAF/collision/cleanup passed; OEM/physical-device coverage remains manual |
+| MediaSizeLimiter | Independent preferences, nonzero selected-type caps rejected explicitly | Actual cap processing is M4 |
+| MusicMetadata / OnlineMetadata / ReplayGain | Eleven preferences and static format-aware sample | Actual enrichment/tag processing and ReplayGain are M5; completion warns that source tags may remain |
+| AppTheme / Penrose identity | Explicit light/dark, SVG-derived adaptive icon | Persistence/UI/resource checks; physical launcher/accessibility review remains manual |
+| Android packaging | Stable package, minSdk29, APK/report workflow, cached debug identity | Local and CI build checks; durable signing and broader hardening M6 |
 
-Sources inspected for implemented counterparts: `DownloaderForm.cs`, `SettingsForm.cs`, `SettingsStore.cs`, `AudioFormats.cs`, `AudioEncoding.cs`, `AppTheme.cs`, and the original SVG (blob `997c55bfa1ac3e26f42229a2fdd0b09278169084`). The remaining desktop sources are listed as future-milestone references; their processing behavior has not been ported in M1.
+Other sources, share intent and full release hardening remain M6. No full desktop parity claim is made.

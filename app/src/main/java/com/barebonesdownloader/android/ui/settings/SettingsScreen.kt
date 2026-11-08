@@ -54,8 +54,9 @@ import com.barebonesdownloader.android.domain.model.*
                         }
                         NumberInput("Quality (0 highest, 10 lowest)", draft.variableQuality, 0..10,
                             draft.qualityMode == QualityMode.VARIABLE && draft.audioFormat.variable, { errors["quality"] = it }) { v -> edit { it.copy(variableQuality = v) } }
-                        NumberInput("Bitrate (kbps)", draft.bitrateKbps, 32..512,
+                        NumberInput("Bitrate (kbps)", draft.bitrateKbps, 32..(if (draft.audioFormat == AudioFormat.MP3) 320 else 512),
                             draft.qualityMode == QualityMode.BITRATE && draft.audioFormat.bitrate, { errors["bitrate"] = it }) { v -> edit { it.copy(bitrateKbps = v) } }
+                        if (draft.audioFormat == AudioFormat.MP3) Text("MP3 supports up to 320 kbps; quality 10 uses LAME's lowest supported setting (9).")
                         Text("Quality is limited by the source audio. Default prefers compatible stream copy; explicit quality/bitrate requests re-encode.")
                         SizeCap("Audio", draft.audioMaxSizeMb, { errors["audioCap"] = it }) { v -> edit { it.copy(audioMaxSizeMb = v) } }
                         Text("Over-cap audio may lose quality; Best available/lossless output becomes AAC-in-M4A if reduction is needed. Tiny limits may be impossible. 1 MB = 1,000,000 bytes.")
@@ -65,7 +66,7 @@ import com.barebonesdownloader.android.domain.model.*
                     2 -> {
                         Choice("Maximum resolution", draft.videoMaxHeight, videoHeights, { if (it == 0) "Best available" else "${it}p" }) { v -> edit { it.copy(videoMaxHeight = v) } }
                         SizeCap("Video", draft.videoMaxSizeMb, { errors["videoCap"] = it }) { v -> edit { it.copy(videoMaxSizeMb = v) } }
-                        Text("MP4 with H.264 video and AAC sound. Milestone 2 supports Best available resolution. Resolution controls arrive in milestone 3; decimal-MB size caps arrive in milestone 4.")
+                        Text("MP4 with H.264 video and AAC sound. Resolution is a ceiling, with no upscaling. Incompatible streams fail clearly. Decimal-MB size caps arrive in milestone 4.")
                         Text("Music metadata and ReplayGain are not applied to video.")
                     }
                     3 -> {

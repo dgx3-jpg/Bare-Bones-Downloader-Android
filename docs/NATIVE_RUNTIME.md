@@ -1,4 +1,4 @@
-# Native runtime provenance — milestone 2
+# Native runtime provenance — milestones 2 and 3
 
 Pinned Maven Central coordinates: `io.github.junkfood02.youtubedl-android:{library,ffmpeg,common}:0.18.1`. Upstream repository/tag: https://github.com/yausername/youtubedl-android/tree/0.18.1. Central metadata lists this as the latest release at inspection on 2026-11-08.
 
@@ -12,7 +12,7 @@ Audited AAR SHA-256:
 
 The library AAR bundles yt-dlp **2025.11.12** (`335653be82d5ef999cfc2879d005397402eebec1`), Python and QuickJS. The FFmpeg AAR supplies `libffmpeg.so`, `libffprobe.so` and packaged dependencies for **arm64-v8a, armeabi-v7a, x86_64, x86**. Native execution requires installer extraction (`useLegacyPackaging` / `extractNativeLibs`); no executable is downloaded at app runtime. Private staging and SAF avoid the obsolete broad-storage advice in the upstream README.
 
-Archive inspection of the x86_64 libavutil configuration found `--enable-gpl --enable-version3 --enable-libmp3lame --enable-libopus --enable-libvorbis --enable-libx264 --disable-libfdk-aac`, and no `--enable-nonfree`. Configuration strings are **not** an executed codec test. Android 10/x86_64 native tests executed FFmpeg/ffprobe 7.1.1 and yt-dlp 2025.11.12, generated/validated real H.264/AAC media, and passed descendant cancellation. Broad format conversion remains M3; real YouTube saving remains blocked by site authentication. Other ABIs and 16 KB page-size devices remain separate validation targets.
+Archive inspection of the x86_64 libavutil configuration found `--enable-gpl --enable-version3 --enable-libmp3lame --enable-libopus --enable-libvorbis --enable-libx264 --disable-libfdk-aac`, and no `--enable-nonfree`. Configuration strings are **not** an executed codec test. Android 10/x86_64 native tests executed FFmpeg/ffprobe 7.1.1 and yt-dlp 2025.11.12, generated/validated real H.264/AAC media, and passed descendant cancellation. M3 adds executed format-conversion tests; their final CI results are recorded in implementation status. Real YouTube saving encountered site authentication in the older extractor run. Other ABIs and 16 KB page-size devices remain separate validation targets.
 
 ## Licenses and corresponding source
 
@@ -26,7 +26,7 @@ Archive inspection of the x86_64 libavutil configuration found `--enable-gpl --e
 
 Only initialization/unpacking is delegated to upstream. Its blocking `execute` and `destroyProcessById` are not used: the latter interpolates an ID into a shell command and does not provide the process-group guarantee needed here. `NativeRuntime` starts each trusted executable through a constant Python launcher with structured arguments, creates a fresh POSIX session and records its actual PID before exec. A stdin handshake prevents exec/child creation until the parent registers that process group. Cancellation kills that process group and drains output. URL/title text is never concatenated into a shell command. A real Android descendant-cancellation test must pass; host JVM fakes do not prove this behavior.
 
-Extractor updates are through pinned app releases. No automatic, unsigned remote runtime update or custom extractor is implemented.
+The APK overrides the AAR's old extractor with official **yt-dlp 2026.10.26**, source commit `c91f8de0bfb3577894abad716eaaa01659e6bd14`, release asset https://github.com/yt-dlp/yt-dlp/releases/download/2026.10.26/yt-dlp. SHA-256: `e51e69e89489f199530f13d32a4342da3ddb2cf34842f364603a066db05afbf3`. Gradle downloads/verifies this fixed asset into generated resources, including the official bundled EJS solver. Startup hash-checks and replaces a stale unpacked extractor from the trusted APK resource. Source/licenses: https://github.com/yt-dlp/yt-dlp/tree/c91f8de0bfb3577894abad716eaaa01659e6bd14. Extractor updates are through pinned app releases. No automatic, unsigned remote runtime update or custom extractor is implemented.
 
 ## Live integration fixture
 

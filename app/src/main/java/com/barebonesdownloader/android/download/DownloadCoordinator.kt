@@ -3,6 +3,7 @@ package com.barebonesdownloader.android.download
 import com.barebonesdownloader.android.data.repository.RoomDownloadRepository
 import com.barebonesdownloader.android.domain.model.*
 import com.barebonesdownloader.android.media.MediaGateway
+import com.barebonesdownloader.android.media.MediaProgress
 import com.barebonesdownloader.android.storage.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
@@ -26,19 +27,11 @@ class DownloadCoordinator(private val repository: RoomDownloadRepository, privat
                 try {
                     if (!storage.writable(item.destinationUri)) throw FolderUnavailable()
                     require((if (item.kind == DownloadKind.AUDIO) item.settingsSnapshot.audioMaxSizeMb else item.settingsSnapshot.videoMaxSizeMb) == 0) { "File-size caps arrive in milestone 4. Disable caps before queueing." }
-                    require(item.kind != DownloadKind.AUDIO || item.settingsSnapshot.audioFormat == AudioFormat.ORIGINAL && item.settingsSnapshot.qualityMode == QualityMode.DEFAULT) { "This build supports Best available/default audio only; encoding arrives in milestone 3." }
-                    require(item.kind != DownloadKind.VIDEO || item.settingsSnapshot.videoMaxHeight == 0) { "Video resolution controls arrive in milestone 3. Choose Best available for this build." }
                     current = item
                     repository.change(item.id) { if (it.status == DownloadStatus.QUEUED) it.copy(status = DownloadStatus.INSPECTING) else it }
                     checkActive(item.id)
                     log.add("Inspecting ${item.kind.label} item ${item.mediaId}.")
-                    var last = -1
-                    val staged = media.download(item, work) { percent ->
-                        // Native callback is synchronous. Database writes are performed by
-                        // the coordinator's ordered coroutine through a bounded bridge.
-                        val value = percent ?: -1
-                        if (value != last) { last = value; progressUpdates[item.id] = percent ?: 0 }
-                    }
+                    val staged = media.download(item, work) { event -> progressUpdates[item.id] = event }
                     checkActive(item.id)
                     repository.change(item.id) { if (it.status in activeStatuses) it.copy(status = DownloadStatus.SAVING, progressPercent = 100) else it }
                     val uri = storage.publish(item, staged) { runtime.check(item.id) }
@@ -74,10 +67,11 @@ class DownloadCoordinator(private val repository: RoomDownloadRepository, privat
         runtime.check(id)
         require(repository.get(id)?.status in activeStatuses) { "This job is no longer active." }
     }
-    private val progressUpdates = java.util.concurrent.ConcurrentHashMap<UUID, Int>()
+    private val progressUpdates = java.util.concurrent.ConcurrentHashMap<UUID, MediaProgress>()
     suspend fun flushProgress() {
-        progressUpdates.forEach { (id, percent) -> repository.change(id) {
-            if (it.status in setOf(DownloadStatus.INSPECTING, DownloadStatus.DOWNLOADING)) it.copy(status = DownloadStatus.DOWNLOADING, progressPercent = percent) else it
+        progressUpdates.forEach { (id, event) -> repository.change(id) {
+            val order = listOf(DownloadStatus.INSPECTING, DownloadStatus.DOWNLOADING, DownloadStatus.PROCESSING, DownloadStatus.SAVING)
+            if (it.status in order && order.indexOf(it.status) <= order.indexOf(event.stage)) it.copy(status = event.stage, progressPercent = event.percent) else it
         } }
     }
 }

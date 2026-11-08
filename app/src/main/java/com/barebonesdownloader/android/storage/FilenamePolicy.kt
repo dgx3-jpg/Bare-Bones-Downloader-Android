@@ -14,7 +14,7 @@ object FilenamePolicy {
             result.append(next)
         }
         val capped = result.toString().trim().trim('.').ifBlank { "Untitled" }
-        return if (Regex("(?i)(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])").matches(capped)) "_$capped" else capped
+        return if (Regex("(?i)(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])").matches(capped.substringBefore('.'))) "_$capped" else capped
     }
     fun name(item: DownloadItem, title: String, extension: String): String {
         require(Regex("[A-Za-z0-9]{1,8}").matches(extension)) { "The output extension is invalid." }

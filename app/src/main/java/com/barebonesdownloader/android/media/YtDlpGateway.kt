@@ -11,7 +11,7 @@ class YtDlpGateway(private val runtime: NativeRuntime, private val log: Download
     private fun base(): List<String> = listOf(runtime.ytdlp.absolutePath, "--ignore-config", "--no-cache-dir", "--no-playlist", "--no-warnings",
         "--socket-timeout", "20", "--retries", "1", "--fragment-retries", "1", "--js-runtimes", "quickjs:${runtime.quickJs.absolutePath}")
     override fun cancel(item: DownloadItem) = runtime.cancel(item.id)
-    override suspend fun download(item: DownloadItem, directory: File, progress: (Int?) -> Unit): StagedMedia {
+    override suspend fun download(item: DownloadItem, directory: File, progress: (MediaProgress) -> Unit): StagedMedia {
         runtime.initialize()
         val inspect = runtime.execute(item.id, runtime.python, base() + listOf("--dump-single-json", "--skip-download", item.sourceUrl), timeoutSeconds = 90)
         val info = json.parseToJsonElement(inspect.out).jsonObject
@@ -20,19 +20,23 @@ class YtDlpGateway(private val runtime: NativeRuntime, private val log: Download
         require(info["id"]?.jsonPrimitive?.content == item.mediaId) { "The extractor returned a different source identity." }
         val title = info["title"]?.jsonPrimitive?.contentOrNull ?: item.mediaId.orEmpty()
         directory.mkdirs()
-        val selector = if (item.kind == DownloadKind.AUDIO) "bestaudio/best" else videoSelector(0)
+        val selector = if (item.kind == DownloadKind.AUDIO) "bestaudio/best" else videoSelector(item.settingsSnapshot.videoMaxHeight)
         val args = base() + listOf("-f", selector, "--newline", "--progress-template", "download:BBD_PROGRESS:%(progress._percent_str)s",
             "--fixup", "never", "--no-simulate", "--progress", "--continue", "--paths", directory.absolutePath, "-o", "source.%(ext)s",
             "--ffmpeg-location", runtime.ffmpeg.absolutePath, "--merge-output-format", "mp4", "--print", "after_move:filepath", item.sourceUrl)
         val result = runtime.execute(item.id, runtime.python, args) { line ->
-            if (line.startsWith("BBD_PROGRESS:")) progress(line.substringAfter(':').trim().removeSuffix("%").toFloatOrNull()?.toInt()?.coerceIn(0, 100))
+            if (line.startsWith("BBD_PROGRESS:")) progress(MediaProgress(DownloadStatus.DOWNLOADING, line.substringAfter(':').trim().removeSuffix("%").toFloatOrNull()?.toInt()?.coerceIn(0, 100)))
         }
         runtime.check(item.id)
         val path = result.out.lineSequence().map(String::trim).filter { it.isNotEmpty() && !it.startsWith("BBD_PROGRESS:") }.lastOrNull()
             ?: error("The extractor did not report an output file.")
         val source = File(path).canonicalFile
         require(source.path.startsWith(directory.canonicalPath + File.separator) && source.isFile && source.length() > 0) { "The extractor output was not a valid staged file." }
-        val output = if (item.kind == DownloadKind.AUDIO) extractAudio(item, source, directory) else source
+        progress(MediaProgress(DownloadStatus.PROCESSING, null))
+        val output = if (item.kind == DownloadKind.AUDIO) {
+            val audio = extractAudio(item, source, directory)
+            AudioConverter(runtime).convert(item, audio, File(directory, "encoding"))
+        } else source
         validate(item, output)
         log.add("Validated ${item.kind.label} output (${output.length()} bytes).")
         return StagedMedia(output, title, if (item.kind == DownloadKind.VIDEO) "video/mp4" else audioMime(output.extension),
@@ -55,9 +59,13 @@ class YtDlpGateway(private val runtime: NativeRuntime, private val log: Download
         listOf("-v", "error", "-show_streams", "-show_format", "-of", "json", file.path)).out).jsonObject
     suspend fun validate(item: DownloadItem, file: File) {
         require(file.isFile && file.length() > 0) { "The staged output is empty or missing." }
-        val streams = probe(item, file)["streams"]?.jsonArray?.map { it.jsonObject }.orEmpty()
+        val details = probe(item, file)
+        val streams = details["streams"]?.jsonArray?.map { it.jsonObject }.orEmpty()
         require(streams.any { it["codec_type"]?.jsonPrimitive?.content == "audio" }) { "The output has no readable audio stream." }
         if (item.kind == DownloadKind.VIDEO) {
+            require(details["format"]?.jsonObject?.get("format_name")?.jsonPrimitive?.content.orEmpty().split(',').contains("mp4")) { "The video container is not MP4." }
+            val limit = item.settingsSnapshot.videoMaxHeight
+            require(limit == 0 || streams.filter { it["codec_type"]?.jsonPrimitive?.content == "video" && it["disposition"]?.jsonObject?.get("attached_pic")?.jsonPrimitive?.intOrNull != 1 }.all { (it["height"]?.jsonPrimitive?.intOrNull ?: Int.MAX_VALUE) <= limit }) { "The video exceeds the selected resolution ceiling." }
             require(file.extension.equals("mp4", true) && streams.any { it["codec_name"]?.jsonPrimitive?.content == "h264" &&
                 it["codec_type"]?.jsonPrimitive?.content == "video" && it["disposition"]?.jsonObject?.get("attached_pic")?.jsonPrimitive?.intOrNull != 1 } &&
                 streams.any { it["codec_type"]?.jsonPrimitive?.content == "audio" && it["codec_name"]?.jsonPrimitive?.content == "aac" }) {
