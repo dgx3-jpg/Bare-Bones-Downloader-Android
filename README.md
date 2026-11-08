@@ -1,20 +1,18 @@
 # Bare Bones Downloader for Android
 
-Native Kotlin/Compose Android port of [Bare Bones Downloader](https://github.com/dgx3-jpg/BareBonesDownloader), following [design v2](ANDROID_DOWNLOADER_SPEC.md). Android 10+; package `com.barebonesdownloader.android`; current candidate **0.6.0 / code 8**.
+Native Kotlin/Compose Android port of [Bare Bones Downloader](https://github.com/dgx3-jpg/BareBonesDownloader), following [design v2](ANDROID_DOWNLOADER_SPEC.md). Android 10+; package `com.barebonesdownloader.android`; current candidate **0.6.1 / code 9**.
 
 Audio and video downloads use a single persistent FIFO queue, independent SAF destinations and captured per-job settings. Native yt-dlp, FFmpeg/ffprobe, nine audio formats, quality/bitrate modes, H.264/AAC MP4 resolution ceilings, independent strict decimal-MB caps, configurable music tags and per-track ReplayGain are implemented. Public single-item sources beyond YouTube and Android plain-text share input are included. Sharing only prefills input; choose Audio/Video and tap Queue.
 
 **Verification limits:** live YouTube extraction was blocked by a sign-in/verification request even with the updated extractor. Other sites can also restrict extraction. No login, cookie imports, DRM circumvention, live recording or playlist batches are implemented. See [actual results and APK links](IMPLEMENTATION_STATUS.md); no full device/site parity is claimed from fixture tests.
 
-**Final APK release blocker:** my earlier CI signing-cache configuration pointed at a path the build did not use, so the old private key was not retained. The final workflow currently runs in verification-only mode and publishes no APK. Publishing an update requires the existing key restored from a private backup, or explicit acceptance of a new stable identity and a clean install. See [signing evidence and the pending decision](IMPLEMENTATION_STATUS.md).
-
-[Final independent verification](https://github.com/dgx3-jpg/Bare-Bones-Downloader-Android/actions/runs/42512639926): 36 host tests and 9 actual Android methods passed; 2 live-site checks were explicitly skipped. Scaled light/dark images were inspected. In-place update verification remains blocked by the missing key.
+A permanent replacement signing identity is now established and privately backed up. An older differently signed CI APK needs a **one-time clean install**, resetting app-private settings/history. The old private key cannot be recovered. Future builds must use the new pinned key; no permanent signing key is kept in GitHub caches.
 
 ## Download / install
 
 [GitHub Actions](https://github.com/dgx3-jpg/Bare-Bones-Downloader-Android/actions/workflows/android.yml) publishes `app-debug-apk` and verification reports. Download the artifact ZIP, extract `app-debug.apk`, and install it. Allow installation from your browser/file manager when Android requests it. The universal APK contains four ABIs and is about 225 MB. No Windows tools or FFmpegKit are used.
 
-Use APKs with the same signing certificate for in-place updates. Uninstalling clears app data and folder grants. CI now checks the established certificate and refuses incompatible signing keys; [signing continuity](docs/RELEASE_CHECKLIST.md) explains the private backup requirement and cache limitations.
+Use APKs with the same signing certificate for in-place updates. Uninstalling clears app data and folder grants. CI checks the permanent public certificate and refuses incompatible signed release assets; [signing continuity](docs/RELEASE_CHECKLIST.md) explains the private backup requirement and cache limitations.
 
 ## Use
 
@@ -34,6 +32,19 @@ Keep the foreground notification enabled for progress/cancellation. Android/OEM 
 - Per-track ReplayGain uses EBU R128 loudness and sample peak analysis after encoding; tags do not normalize samples. Opus also gets its standard R128 gain. Metadata/ReplayGain failures warn and retain otherwise readable audio. Video skips music enrichment and ReplayGain.
 - Publication verifies size and SHA-256 read-back, skips collisions and removes incomplete documents on handled failures. A private publication journal supports cleanup after process death. SAF providers offer no universal atomic/exclusive rename, and permission loss can require manual cleanup. No all-files permission.
 
+## Permanent signing / CI
+
+The permanent certificate fingerprint is in `tools/signing-certificate.sha256`. Keep the supplied private signing backup outside the repository. For a source-bound release from a clean checkout:
+
+```sh
+export BBD_DEBUG_KEYSTORE_PATH=/private/path/bbd-android.keystore
+python3 tools/build-release.py
+```
+
+This builds the actual app plus signed instrumentation/update fixtures, verifies hashes/source commit/certificate and writes `release-build/`. The private key is never included. Release assets are `app-debug.apk`, `release-manifest.json`, and `update-verification-apks.zip`. A manual Actions run with `release_tag` downloads and verifies those public binaries, publishes the installable APK artifact and tests the actual permanent-key APK upgrade. No private signing key needs to enter CI.
+
+Push/PR builds use temporary test keys when no signing secret is configured; temporary-key APKs are not published as installable releases. For optional fully automatic CI signing, the repository owner can configure Actions secret `BBD_DEBUG_KEYSTORE_BASE64` from the private backup. The connected app cannot administer that secret; offline signing works without it.
+
 ## Build / test
 
 JDK 17 or 21; SDK Platform 36; Build Tools 35.0.0. Set `ANDROID_HOME` or an untracked `local.properties` with `sdk.dir=/your/sdk/path`.
@@ -46,7 +57,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 Windows: `gradlew.bat`. Gradle, AGP, Kotlin and dependencies are pinned. Official yt-dlp 2026.10.26 and Mutagen 1.47.0 are downloaded and checksum verified **at build time**, then bundled. The app does not update executables remotely.
 
-With an API 29+ emulator/device connected:
+With a dedicated API 29+ emulator connected (integration tests reset test preferences and create fixture history):
 
 ```sh
 # Real codecs, caps, tags/RG, SAF, cancellation, share, recovery and owned HTTP FIFO fixtures:
@@ -55,7 +66,7 @@ bash tools/run-native-tests.sh false false
 bash tools/run-native-tests.sh true true
 ```
 
-The manual Actions workflow also attempts a same-certificate APK update using the previous artifact, when available. Its reports distinguish skipped live checks from successful downloads. Owned generated media and local test HTTP fixtures do not prove TikTok/YouTube availability. No downloaded creator media is included in report artifacts.
+The manual Actions workflow verifies a versioned same-certificate APK update; a signed release run uses the actual permanent-key baseline/current/test APKs. Its reports distinguish skipped live checks from successful downloads. Owned generated media and local test HTTP fixtures do not prove TikTok/YouTube availability. No downloaded creator media is included in report artifacts.
 
 ## Licensing / release status
 

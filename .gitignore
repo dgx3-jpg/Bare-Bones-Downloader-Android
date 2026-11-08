@@ -10,3 +10,8 @@
 baseline-apk/
 native-logcat.txt
 theme-*-scaled.png
+
+signed-apks/
+release-build/
+
+**/__pycache__/

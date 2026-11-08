@@ -45,7 +45,7 @@ def main():
         for line in pathlib.Path(sys.argv[2]).read_text().splitlines(): results.line(line)
         return 0 if results.write(output) else 1
     try:
-        for apk in ['app/build/outputs/apk/debug/app-debug.apk','app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk']:
+        for apk in [os.environ.get('BBD_APP_APK','app/build/outputs/apk/debug/app-debug.apk'),os.environ.get('BBD_TEST_APK','app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk')]:
             subprocess.run(['adb','install','-r','-t',apk],check=True,timeout=180)
         command=['adb','shell','am','instrument','-w','-r','-e','class','com.barebonesdownloader.android.NativeIntegrationTest',
                  '-e','timeout_msec','180000','-e','live',sys.argv[1] if len(sys.argv)>1 else 'false',

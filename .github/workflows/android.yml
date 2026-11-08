@@ -5,17 +5,17 @@ on:
   workflow_dispatch:
     inputs:
       live:
-        description: 'Run opt-in public YouTube audio/video + SAF integration'
+        description: 'Opt-in public YouTube verification'
         type: boolean
         default: false
       tiktok:
-        description: 'Opt-in TikTok public fixture verification (may be site-restricted)'
+        description: 'Opt-in public TikTok verification'
         type: boolean
         default: false
-      verification_only:
-        description: 'Isolated temporary test key; no APK publication or in-place update claim'
-        type: boolean
-        default: false
+      release_tag:
+        description: 'Verify and publish signed APK assets from this release tag; blank runs source verification'
+        type: string
+        default: ''
 permissions:
   contents: read
   actions: read
@@ -25,11 +25,16 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      signing_mode: ${{ steps.signing.outputs.mode }}
     env:
       BBD_DEBUG_KEYSTORE_PATH: /tmp/bbd-signing/debug.keystore
-      BBD_VERIFY_ONLY: ${{ inputs.verification_only }}
+      BBD_RELEASE_TAG: ${{ inputs.release_tag }}
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag || github.ref }}
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -40,32 +45,40 @@ jobs:
         with:
           path: app/build/test-home/.m2/repository
           key: robolectric-4.16.1-api35-i7
-      - name: Keep debug signing identity between builds
-        if: inputs.verification_only != true
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.BBD_DEBUG_KEYSTORE_PATH }}
-          key: bare-bones-android-debug-signing-v2
-      - name: Enforce update-compatible debug signing
+      - name: Configure signing without caching private keys
+        id: signing
         env:
-          BBD_DEBUG_KEYSTORE_BASE64: ${{ secrets.BBD_DEBUG_KEYSTORE_BASE64 }}
+          BBD_DEBUG_KEYSTORE_BASE64: ${{ github.event_name != 'pull_request' && secrets.BBD_DEBUG_KEYSTORE_BASE64 || '' }}
         run: python3 tools/verify-signing.py
-      - name: Install pinned Android SDK packages
-        uses: android-actions/setup-android@v4
+      - uses: android-actions/setup-android@v4
         with:
           cmdline-tools-version: '13114758'
           packages: 'platform-tools platforms;android-36 build-tools;35.0.0'
           log-accepted-android-sdk-licenses: false
-      - name: Test and build APK
-        run: ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug
-      - name: Publish sideloadable debug APK
-        if: inputs.verification_only != true
+      - name: Test, lint and assemble source
+        run: ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug -PbbdSourceCommit="$(git rev-parse HEAD)"
+      - name: Fetch and verify offline-signed release
+        if: inputs.release_tag != ''
+        run: |
+          gh release download "$BBD_RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern app-debug.apk --pattern update-verification-apks.zip --pattern release-manifest.json --dir signed-apks
+          python3 tools/verify-release.py signed-apks
+      - name: Publish verified signed release APK
+        if: inputs.release_tag != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-apk
+          path: |
+            signed-apks/app-debug.apk
+            signed-apks/release-manifest.json
+          if-no-files-found: error
+      - name: Publish directly signed CI APK
+        if: inputs.release_tag == '' && steps.signing.outputs.mode == 'permanent'
         uses: actions/upload-artifact@v4
         with:
           name: app-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
-      - name: Publish test and lint reports
+      - name: Publish verification reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -73,15 +86,22 @@ jobs:
           path: |
             app/build/reports/tests/
             app/build/reports/lint-results-debug.*
+      - name: Remove temporary signing material
+        if: always()
+        run: rm -f "$BBD_DEBUG_KEYSTORE_PATH"
   native-integration:
+    needs: build
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     env:
       BBD_DEBUG_KEYSTORE_PATH: /tmp/bbd-signing/debug.keystore
-      BBD_VERIFY_ONLY: ${{ inputs.verification_only }}
-    timeout-minutes: 25
+      BBD_RELEASE_TAG: ${{ inputs.release_tag }}
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag || github.ref }}
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -92,28 +112,18 @@ jobs:
           cmdline-tools-version: '13114758'
           packages: 'platform-tools platforms;android-36 build-tools;35.0.0'
           log-accepted-android-sdk-licenses: false
-      - name: Restore the established debug signing key
-        if: inputs.verification_only != true
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.BBD_DEBUG_KEYSTORE_PATH }}
-          key: bare-bones-android-debug-signing-v2
-      - name: Enforce update-compatible debug signing
+      - name: Configure isolated test signing
         env:
           BBD_DEBUG_KEYSTORE_BASE64: ${{ secrets.BBD_DEBUG_KEYSTORE_BASE64 }}
         run: python3 tools/verify-signing.py
-      - name: Fetch previous same-package APK for in-place update verification
-        if: inputs.verification_only != true
-        continue-on-error: true
-        uses: actions/download-artifact@v4
-        with:
-          github-token: ${{ github.token }}
-          run-id: '42501942123'
-          name: app-debug-apk
-          path: baseline-apk
+      - name: Fetch actual permanent-key APKs for upgrade verification
+        if: inputs.release_tag != ''
+        run: |
+          gh release download "$BBD_RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern app-debug.apk --pattern update-verification-apks.zip --pattern release-manifest.json --dir signed-apks
+          python3 tools/verify-release.py signed-apks
       - name: Allow runner access to KVM
         run: sudo setfacl -m u:$(id -un):rw /dev/kvm
-      - name: Native runtime, process cancellation and real audio/video integration
+      - name: Test real APK update, native media, SAF and background execution
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 29
@@ -128,9 +138,10 @@ jobs:
         with:
           name: native-integration-reports
           path: |
-            app/build/reports/androidTests/
-            app/build/outputs/androidTest-results/
             app/build/outputs/native-test-results/
             native-runner.log
             native-logcat.txt
             theme-*-scaled.png
+      - name: Remove temporary signing material
+        if: always()
+        run: rm -f "$BBD_DEBUG_KEYSTORE_PATH"

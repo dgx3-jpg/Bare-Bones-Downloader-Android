@@ -1,7 +1,17 @@
 #!/usr/bin/env bash
 set -u
 timeout 20s adb logcat -c
-./gradlew --no-daemon assembleDebug assembleDebugAndroidTest || exit $?
+if [[ -d signed-apks ]]; then
+  export BBD_APP_APK="$PWD/signed-apks/app-debug.apk"
+  export BBD_TEST_APK="$PWD/signed-apks/app-debug-androidTest.apk"
+  export BBD_BASELINE_APK="$PWD/signed-apks/baseline-app.apk"
+else
+  commit=$(git rev-parse HEAD)
+  ./gradlew --no-daemon assembleDebug -PbbdVersionCode=8 -PbbdVersionName=0.6.0-update-baseline -PbbdSourceCommit="$commit" || exit $?
+  mkdir -p baseline-apk
+  cp app/build/outputs/apk/debug/app-debug.apk baseline-apk/app-debug.apk
+  ./gradlew --no-daemon assembleDebug assembleDebugAndroidTest -PbbdSourceCommit="$commit" || exit $?
+fi
 python3 tools/check-update.py || exit $?
 python3 tools/native-test-driver.py "${1:-false}" "${2:-false}"
 result=$?

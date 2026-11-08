@@ -1,23 +1,18 @@
 #!/usr/bin/env python3
-"""Restore an optional Actions secret, then enforce the established public certificate."""
+"""CI uses an isolated test key unless a permanent signing secret is supplied."""
 import base64, hashlib, os, pathlib, subprocess, sys
-expected = 'fe2db971ead2186305b3fcac03c4b72aee0e535e310a5cebed82d2be578f646b'
-key = pathlib.Path(os.environ.get('BBD_DEBUG_KEYSTORE_PATH',str(pathlib.Path.home() / '.android' / 'debug.keystore')))
-if os.environ.get('BBD_VERIFY_ONLY') == 'true':
-    key.parent.mkdir(parents=True,exist_ok=True)
-    if not key.exists():
-        subprocess.run(['keytool','-genkeypair','-keystore',str(key),'-storepass','android','-keypass','android','-alias','androiddebugkey','-dname','CN=Verification Only,O=Private Test,C=US','-keyalg','RSA','-keysize','2048','-validity','7'],check=True,capture_output=True)
-    print('VERIFICATION ONLY: isolated temporary key. No APK publication or update continuity claim.')
-    sys.exit(0)
-encoded = os.environ.get('BBD_DEBUG_KEYSTORE_BASE64', '')
+expected=pathlib.Path('tools/signing-certificate.sha256').read_text().strip()
+key=pathlib.Path(os.environ['BBD_DEBUG_KEYSTORE_PATH'])
+key.parent.mkdir(parents=True,exist_ok=True)
+encoded=os.environ.get('BBD_DEBUG_KEYSTORE_BASE64','')
+mode='verification'
 if encoded:
-    key.parent.mkdir(parents=True, exist_ok=True)
-    data = base64.b64decode(encoded, validate=True)
-    key.write_bytes(data)
-    key.chmod(0o600)
-if not key.is_file():
-    sys.exit('Established debug key is unavailable. Restore BBD_DEBUG_KEYSTORE_BASE64 from its private backup; refusing to generate an incompatible update key.')
-result = subprocess.run(['keytool','-exportcert','-keystore',str(key),'-storepass','android','-alias','androiddebugkey'], capture_output=True)
-if result.returncode or hashlib.sha256(result.stdout).hexdigest() != expected:
-    sys.exit('Debug signing certificate differs from previous APKs. Restore the existing key; no APK will be published.')
-print('Verified established debug signing certificate SHA-256: ' + expected)
+    key.write_bytes(base64.b64decode(encoded,validate=True));key.chmod(0o600);mode='permanent'
+elif not key.is_file():
+    subprocess.run(['keytool','-genkeypair','-keystore',str(key),'-storepass','android','-keypass','android','-alias','androiddebugkey','-dname','CN=Verification Only','-keyalg','RSA','-keysize','2048','-validity','7'],check=True,capture_output=True)
+result=subprocess.run(['keytool','-exportcert','-keystore',str(key),'-storepass','android','-alias','androiddebugkey'],capture_output=True,check=True)
+fingerprint=hashlib.sha256(result.stdout).hexdigest()
+if mode=='permanent' and fingerprint!=expected: sys.exit('Permanent signing certificate mismatch; refusing publication.')
+print('Signing mode: '+mode+'; certificate SHA-256: '+fingerprint)
+if os.environ.get('GITHUB_OUTPUT'):
+    with open(os.environ['GITHUB_OUTPUT'],'a') as output: output.write('mode='+mode+'\n')

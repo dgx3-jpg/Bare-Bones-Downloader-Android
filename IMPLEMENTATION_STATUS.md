@@ -1,4 +1,14 @@
-# Implementation status
+# Signing repair in progress — 0.6.1 / code 9
+
+The owner instructed the assistant to fix the remaining problems. A new permanent signing identity and private backup have been created. Its public SHA-256 is `80bd2bc24c4cf2e4710089a66bbb4eeba6323f840b913349936f729887696091`. Older CI APKs need one clean install because their private keys are lost; no data on the owner's device has been removed.
+
+Release signing now happens offline with source binding and public hash receipts. CI verifies signed APK assets and can test/publish them without access to the private key. All permanent-key caches are removed; source/PR checks use non-published temporary keys. Optional Actions-secret signing remains supported for owners with administrative access. Final signed assets and actual permanent-key upgrade verification are being prepared.
+
+Latest official yt-dlp release was rechecked on 2026-11-08: **2026.10.26**, already pinned. No newer official extractor fix is available to address the recorded YouTube sign-in/TikTok IP restrictions. These site-side restrictions are not reported as repaired or bypassed.
+
+---
+
+## Prior milestone implementation and verification record
 
 Requested scope includes **all milestones 1–6** of design v2. **M4 and M5 are complete and verified. M6 code and independent Android checks are verified; its final APK publication and in-place update check are blocked by the missing prior CI signing key.** Candidate **0.6.0 / code 8**, package `com.barebonesdownloader.android`. The owner signing decision remains pending; no new permanent identity has been approved or published. This is not a full live-site/physical-device parity claim.
 

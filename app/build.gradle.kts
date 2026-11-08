@@ -18,9 +18,10 @@ android {
         applicationId = "com.barebonesdownloader.android"
         minSdk = 29
         targetSdk = 36
-        versionCode = 8
-        versionName = "0.6.0"
+        versionCode = providers.gradleProperty("bbdVersionCode").orElse("9").get().toInt()
+        versionName = providers.gradleProperty("bbdVersionName").orElse("0.6.1").get()
         buildConfigField("String", "EXTRACTOR_SHA256", "\"e51e69e89489f199530f13d32a4342da3ddb2cf34842f364603a066db05afbf3\"")
+        manifestPlaceholders["bbdSourceCommit"] = providers.gradleProperty("bbdSourceCommit").orElse("development").get()
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildFeatures { compose = true; buildConfig = true }

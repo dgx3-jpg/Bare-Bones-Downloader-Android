@@ -6,6 +6,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <application android:extractNativeLibs="true" android:name=".DownloaderApplication" android:allowBackup="false"
         android:label="Bare Bones Downloader" android:icon="@mipmap/ic_launcher" android:supportsRtl="true" android:theme="@style/Theme.Downloader">
+        <meta-data android:name="com.barebonesdownloader.android.BUILD_COMMIT" android:value="${bbdSourceCommit}" />
         <service android:name=".download.DownloadForegroundService" android:exported="false" android:foregroundServiceType="dataSync" />
         <activity android:name=".MainActivity" android:exported="true" android:launchMode="singleTop">
             <intent-filter>

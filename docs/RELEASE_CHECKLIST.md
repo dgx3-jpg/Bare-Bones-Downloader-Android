@@ -1,40 +1,32 @@
 # Release and update checklist
 
-This is a personal sideloadable debug build, not a public distribution claim. Check [implementation status](../IMPLEMENTATION_STATUS.md) for actual results rather than treating this checklist as passed.
+Private personal debug build. Actual results are in [implementation status](../IMPLEMENTATION_STATUS.md).
 
-## Signing continuity
+## Permanent signing
 
-The established CI debug certificate SHA-256 is:
+Replacement certificate SHA-256:
 
-`fe2db971ead2186305b3fcac03c4b72aee0e535e310a5cebed82d2be578f646b`
+`80bd2bc24c4cf2e4710089a66bbb4eeba6323f840b913349936f729887696091`
 
-CI uses the explicit `BBD_DEBUG_KEYSTORE_PATH` in both Gradle and cache (`bare-bones-android-debug-signing-v2`) and verifies the certificate before building. The legacy v1 cache path did not exist and no key was saved; earlier key continuity must not be assumed. A missing/different key fails the build; CI never silently generates an incompatible replacement. Native tests use the same identity. No private key is committed or uploaded in artifacts.
+The earlier CI keys were not retained because their cache path was incorrect. Their private keys cannot be recovered from APKs. The owner instructed the assistant to fix the problem; a new permanent identity was created with a private backup. Older differently signed APKs require one clean install (app-private settings/history reset). No uninstall or data removal on the owner's device is automated.
 
-For durable recovery, the repository owner should retain a **private backup of that existing key**, and configure repository Actions secret `BBD_DEBUG_KEYSTORE_BASE64` containing its base64 bytes. The optional secret takes precedence over the cache; its certificate must match the pinned public fingerprint. The standard debug alias/password are `androiddebugkey` / `android`. Do not put the key, its base64 text or a release password in an issue/chat/commit. No durable secret backup is asserted configured by this task; cache eviction therefore still requires restoration of the existing key before another CI APK can be published.
+The permanent private key is kept outside the repository and is **never stored in Actions caches or public artifacts**. Keep the private backup in two secure locations. It contains the keystore, public certificate and restore/build instructions. Debug convention: alias `androiddebugkey`, keystore/key password `android`; possession of the file grants signing authority, so keep it private.
 
-Local SDK debug keys generally differ from CI. To update an installed CI APK locally, use the existing privately backed-up CI key. Otherwise Android correctly rejects `adb install -r`. Do not recommend uninstalling as a data-preserving update.
+`tools/build-release.py` requires a clean committed checkout and the private key path. It builds baseline code8 / current code9 / instrumentation APKs with the same key, embeds the source commit, produces hash receipts and verifies the pinned signer. The baseline is explicitly an update fixture built from current source, not an assertion that the lost old certificate was recovered.
 
-## Automated gates
+CI can verify these signed public binaries from a release using `release_tag`, then publish the installable artifact and run the actual permanent-key upgrade/data-preservation test. Source push/PR jobs use isolated temporary keys and publish reports, not a misleading temporary-key release APK. A repository owner may optionally configure `BBD_DEBUG_KEYSTORE_BASE64` through Actions secrets for direct CI signing. The connected integration lacks secret-administration permission (HTTP403); this is no longer required for offline release delivery.
 
-- Unit/Robolectric tests; APK/instrumentation compilation; lint with no errors.
-- Real Android native codec/container, selected/deselected tags, ReplayGain and unchanged-audio checks.
-- Strict audio/video cap under/over/impossible boundaries; final tag overhead included; seven-attempt bound.
-- Real DocumentsUI grants, collision protection, read-back hash, cancellation and publication-journal recovery.
-- Owned HTTP source Audio A / Video A / Video B FIFO while screen is off; no automatic work from a share.
-- Light/dark at increased font scale, with screenshots inspected.
-- In-place `adb install -r` preserves preferences, waiting reservations and history. `tools/check-update.py` seeds these in the old APK and verifies them in the new one. The baseline artifact run is pinned in the workflow; replace it with a retained same-certificate baseline when it expires. If unavailable the update test explicitly reports SKIPPED, not passed.
-- Record live YouTube and TikTok results separately. Site authentication, removal, geography or extractor changes are limitations; do not label them as passing downloads. Do not add cookie/login or bypass workarounds.
+## Gates
 
-## Device / owner checks still required where untested
+- Host tests, lint and app/test assembly.
+- Signed asset hashes, source-commit metadata, package/version and public certificate verification.
+- Actual `adb install -r` update preserves preferences, waiting reservations and completed history; old-certificate updates remain impossible without that old key.
+- Native codec/decode, strict caps (including tag overhead), tag selection/removal, gain/peak and unchanged encoded samples.
+- Real SAF grant/read-back hash, collisions, cancellation and recovery of owned partial documents while protecting committed bytes.
+- Owned HTTP Audio A / Video A / Video B FIFO and foreground service while screen is off; shared text only prefills input.
+- Scaled light/dark screenshots inspected.
+- Live YouTube/TikTok results recorded separately; authentication/IP blocks are site limitations. No cookie/login, proxies, client impersonation or bypass workaround is added.
 
-- A physical Android device and the intended ARM ABI; current Android service limits, permission prompts and OEM battery policies; 16 KB page-size compatibility on affected devices.
-- TalkBack traversal/status announcements, 200% text, landscape, keyboard navigation and launcher icon rendering.
-- Provider-specific behavior (cloud/offline/removable storage, revoked permissions, manual cleanup when delete is denied). SAF cannot guarantee atomic publication across every provider. A hard process kill between provider creation and journal commit is a small unavoidable cross-store transaction gap; inspect the folder if interrupted at that point.
-- Accessible user-authorized live examples for each intended website; authoritative metadata and catalogue matches. Generated fixtures verify processing, not live site access or every music credit.
-- Durable private signing backup, current GPL notices, complete corresponding-source/build bundle and compatible licensing before wider redistribution.
+## Remaining manual limits
 
-The `verification_only` manual workflow uses an isolated temporary key, never caches it as the stable identity and never publishes its APK. Its update test explicitly skips. Independent native test results can be recorded while private signing recovery is pending.
-
-The connected GitHub integration cannot administer Actions secrets (the public-key endpoint returned HTTP 403). If restoring an existing private backup, the owner must configure it in [repository Actions secrets](https://github.com/dgx3-jpg/Bare-Bones-Downloader-Android/settings/secrets/actions). Never send private key contents in chat.
-
-Final independent run [42512639926](https://github.com/dgx3-jpg/Bare-Bones-Downloader-Android/actions/runs/42512639926) passed 36 host tests, lint/build and 9 Android checks, with 2 explicit live skips. Valid 1.3-scale theme PNGs were inspected. The old/new APK update test is still SKIPPED because the prior private key is missing; normal-mode run42513349402 confirmed the guard remains blocked. No final M6 APK was published.
+Physical phone/ARM/16KB-page/OEM battery checks, TalkBack/200% text/landscape/launcher checks, provider-specific deletion/grant loss and actual live catalogue/source availability remain separate device/release checks where untested. SAF has no universal atomic/exclusive rename; a hard kill between provider creation and journal commit can require manual cleanup. Wider distribution requires complete GPL corresponding-source/build materials and compatible licensing; no project-wide license over the owner's original code is inferred.
