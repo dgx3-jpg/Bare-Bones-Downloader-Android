@@ -5,6 +5,8 @@ fun describeDownloadFailure(error: Exception): DownloadFailure {
     val detail = sanitizeDiagnostic(error.message ?: "Download failed.")
     val text = detail.lowercase()
     val (code, message) = when {
+        listOf("ip address is blocked", "access denied", "geo restricted", "not available in your region").any(text::contains) ->
+            "SOURCE_RESTRICTED" to "This source blocked access from this network or device. No file was saved."
         listOf("unsupported url", "requested format is not available", "no suitable extractor", "no video formats", "no video could be found", "collections are rejected", "live streams are not supported", "drm-protected").any(text::contains) ->
             "UNSUPPORTED" to "This link does not expose a supported public single-media item. Playlists, live streams and DRM-protected media are unsupported."
         listOf("native runtime is missing", "missing ffmpeg encoder", "no such file or directory").any(text::contains) -> "TOOL_MISSING" to "A required media tool is missing or unsupported on this device. Reinstall a compatible APK."

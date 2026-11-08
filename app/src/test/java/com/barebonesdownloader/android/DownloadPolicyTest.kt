@@ -34,6 +34,7 @@ class DownloadPolicyTest {
         val problem = describeDownloadFailure(IllegalStateException("Sign in to confirm you are not a bot. Use --cookies https://example.test/?token=secret"))
         assertEquals("AUTH_REQUIRED", problem.code); assertFalse(problem.message.contains("--cookies"))
         assertFalse(problem.diagnostic.contains("secret"))
+        assertEquals("SOURCE_RESTRICTED", describeDownloadFailure(IllegalStateException("Your IP address is blocked from accessing this post")).code)
         assertEquals("NO_SPACE", describeDownloadFailure(IllegalStateException("No space left on device")).code)
         assertEquals("TIMEOUT", describeDownloadFailure(IllegalStateException("Socket timed out")).code)
     }

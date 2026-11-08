@@ -146,11 +146,18 @@ class NativeIntegrationTest {
     @Test fun hSharePrefillsWithoutEnqueueAndJournalRecovers() = runBlocking<Unit> {
         app.ready.await()
         val before = app.database.downloads().all().size
-        ui.activity.runOnUiThread {
-            ui.activity.startActivity(Intent(ui.activity,MainActivity::class.java).setAction(Intent.ACTION_SEND).setType("text/plain").addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP).putExtra(Intent.EXTRA_TEXT,"https://www.tiktok.com/@fixture/video/123"))
+        val intent=Intent(Intent.ACTION_SEND).setType("text/plain").setPackage(app.packageName).putExtra(Intent.EXTRA_TEXT,"https://www.tiktok.com/@fixture/video/123")
+        assertTrue(app.packageManager.queryIntentActivities(intent,0).any { it.activityInfo.name==MainActivity::class.java.name })
+        val instrumentation=InstrumentationRegistry.getInstrumentation()
+        val activity=ui.activity; val originalIntent=activity.intent
+        try {
+            instrumentation.runOnMainSync { instrumentation.callActivityOnNewIntent(activity,intent) }
+            ui.waitUntil(10000) { ui.onAllNodes(hasTestTag("links_input") and hasText("https://www.tiktok.com/@fixture/video/123", substring=true)).fetchSemanticsNodes().isNotEmpty() }
+            ui.onNodeWithTag("links_input").assertTextContains("https://www.tiktok.com/@fixture/video/123")
+        } finally {
+            // ActivityScenario identifies its activity by the original launch intent.
+            instrumentation.runOnMainSync { activity.intent=originalIntent }
         }
-        ui.waitUntil(10000) { ui.onAllNodes(hasTestTag("links_input") and hasText("https://www.tiktok.com/@fixture/video/123", substring=true)).fetchSemanticsNodes().isNotEmpty() }
-        ui.onNodeWithTag("links_input").assertTextContains("https://www.tiktok.com/@fixture/video/123")
         assertEquals(before,app.database.downloads().all().size)
         val prefs = app.settings.settings.first()
         val tree = DocumentFile.fromTreeUri(app,android.net.Uri.parse(prefs.audioFolderUri))!!
@@ -241,7 +248,9 @@ class NativeIntegrationTest {
                 delay(500); ui.waitForIdle()
                 ui.onNodeWithTag("links_input").performScrollTo().assertIsDisplayed()
                 ui.onNodeWithTag("queue_button").performScrollTo().assertIsDisplayed()
-                assertTrue(device.takeScreenshot(File(app.cacheDir,"theme-${theme.name.lowercase()}-scaled.png")))
+                val screenshot="/sdcard/Download/BBD-native-test-theme-${theme.name.lowercase()}-scaled.png"
+                device.executeShellCommand("screencap -p $screenshot")
+                assertTrue(device.executeShellCommand("stat -c %s $screenshot").trim().toLong() > 1000)
             }
         } finally { device.executeShellCommand("settings put system font_scale 1.0") }
     }

@@ -40,3 +40,14 @@ Local toolchain: OpenJDK21.0.13, SDK36, Build Tools35.0.0, Gradle8.13, AGP8.13.2
 Run [42505873785](https://github.com/dgx3-jpg/Bare-Bones-Downloader-Android/actions/runs/42505873785) stopped before building because the established signing key was absent. Inspection confirmed zero matching caches; earlier build logs reported “Path(s) specified ... do(es) not exist”, so the legacy cache never retained the key. The old APK alone cannot recover its private signing key. The owner has been asked to restore a private backup through the Actions secret, or explicitly accept a new stable identity and clean install. No incompatible APK was published.
 
 Signing now uses an explicit `BBD_DEBUG_KEYSTORE_PATH` shared by Gradle, the guard and cache. A separate `verification_only` workflow can run all independent tests with an isolated seven-day key; it skips APK publication, stable-key caching and the in-place update test. This does not resolve the old-key continuity blocker or assert a new stable key was approved.
+
+## First M6 isolated Android run
+
+[42506521028](https://github.com/dgx3-jpg/Bare-Bones-Downloader-Android/actions/runs/42506521028), source 0cc1671, used a temporary verification key and published no APK. Build, 35 host tests and lint passed. Native report: 11 methods, 8 passed, 2 failed, 1 live-YouTube skip.
+
+- Actual generic HTTP extraction completed Audio A / Video A / Video B through the real FIFO, foreground service, FFmpeg, metadata removal and SAF while the emulator screen was off.
+- Final tag-overhead test passed: 229388 < 300000 bytes, a 200000-character comment retained, and ReplayGain independently matched the final AAC samples.
+- All codec/cap/tag/RG/SAF/cancellation checks passed again. Scaled light/dark UI assertions passed; the first screenshot export ran after Gradle removed the app, so those exported files were invalid and are not visual evidence. Export now uses dedicated shell-owned emulator test files before uninstall.
+- Share prefill/no-enqueue and journal assertions executed, but ActivityScenario teardown failed after the shared intent changed the monitored launch intent. The test now delivers via Instrumentation and restores its original monitor intent before teardown.
+- The real TikTok probe failed: **“Your IP address is blocked from accessing this post.”** No successful TikTok audio/video extraction is claimed, and no bypass was attempted. A specific SOURCE_RESTRICTED user-facing error is added. The corrected independent suite skips this known-restricted live probe; the failure above remains the live evidence.
+- In-place update verification was explicitly skipped because the established private key is unavailable. The owner signing choice remains pending.
