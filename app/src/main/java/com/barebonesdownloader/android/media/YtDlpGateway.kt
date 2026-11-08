@@ -33,10 +33,11 @@ class YtDlpGateway(private val runtime: NativeRuntime, private val log: Download
         val source = File(path).canonicalFile
         require(source.path.startsWith(directory.canonicalPath + File.separator) && source.isFile && source.length() > 0) { "The extractor output was not a valid staged file." }
         progress(MediaProgress(DownloadStatus.PROCESSING, null))
-        val output = if (item.kind == DownloadKind.AUDIO) {
+        val encoded = if (item.kind == DownloadKind.AUDIO) {
             val audio = extractAudio(item, source, directory)
             AudioConverter(runtime).convert(item, audio, File(directory, "encoding"))
         } else source
+        val output = MediaSizeLimiter(runtime, log).apply(item, encoded, File(directory, "size"))
         validate(item, output)
         log.add("Validated ${item.kind.label} output (${output.length()} bytes).")
         return StagedMedia(output, title, if (item.kind == DownloadKind.VIDEO) "video/mp4" else audioMime(output.extension),

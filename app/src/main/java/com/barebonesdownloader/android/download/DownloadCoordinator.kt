@@ -26,7 +26,6 @@ class DownloadCoordinator(private val repository: RoomDownloadRepository, privat
                 val work = File(root, item.id.toString())
                 try {
                     if (!storage.writable(item.destinationUri)) throw FolderUnavailable()
-                    require((if (item.kind == DownloadKind.AUDIO) item.settingsSnapshot.audioMaxSizeMb else item.settingsSnapshot.videoMaxSizeMb) == 0) { "File-size caps arrive in milestone 4. Disable caps before queueing." }
                     current = item
                     repository.change(item.id) { if (it.status == DownloadStatus.QUEUED) it.copy(status = DownloadStatus.INSPECTING) else it }
                     checkActive(item.id)

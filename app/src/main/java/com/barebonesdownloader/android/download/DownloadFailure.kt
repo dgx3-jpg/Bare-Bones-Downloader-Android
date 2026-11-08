@@ -5,6 +5,7 @@ fun describeDownloadFailure(error: Exception): DownloadFailure {
     val detail = sanitizeDiagnostic(error.message ?: "Download failed.")
     val text = detail.lowercase()
     val (code, message) = when {
+        error is com.barebonesdownloader.android.media.SizeLimitImpossible -> "SIZE_IMPOSSIBLE" to detail
         listOf("sign in", "sign-in", "not a bot", "authentication", "login required", "use --cookies").any(text::contains) ->
             "AUTH_REQUIRED" to "This source requires sign-in or verification. Authenticated downloads are not supported; no file was saved."
         listOf("no space left", "disk full", "enospc").any(text::contains) ->

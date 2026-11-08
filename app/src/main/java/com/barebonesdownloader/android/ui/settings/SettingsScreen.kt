@@ -66,7 +66,7 @@ import com.barebonesdownloader.android.domain.model.*
                     2 -> {
                         Choice("Maximum resolution", draft.videoMaxHeight, videoHeights, { if (it == 0) "Best available" else "${it}p" }) { v -> edit { it.copy(videoMaxHeight = v) } }
                         SizeCap("Video", draft.videoMaxSizeMb, { errors["videoCap"] = it }) { v -> edit { it.copy(videoMaxSizeMb = v) } }
-                        Text("MP4 with H.264 video and AAC sound. Resolution is a ceiling, with no upscaling. Incompatible streams fail clearly. Decimal-MB size caps arrive in milestone 4.")
+                        Text("MP4 with H.264 video and AAC sound. Resolution is a ceiling, with no upscaling. Incompatible streams fail clearly. Size caps use decimal MB and may reduce quality; impossible limits fail without saving.")
                         Text("Music metadata and ReplayGain are not applied to video.")
                     }
                     3 -> {

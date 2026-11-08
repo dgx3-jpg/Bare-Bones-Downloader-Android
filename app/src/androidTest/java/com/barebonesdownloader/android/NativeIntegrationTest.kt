@@ -71,6 +71,29 @@ class NativeIntegrationTest {
         gateway.validate(DownloadItem(sourceUrl = "fixture", kind = DownloadKind.VIDEO, settingsSnapshot = AppSettings(videoMaxHeight = 360)), video)
         assertTrue(runCatching { gateway.validate(DownloadItem(sourceUrl = "fixture", kind = DownloadKind.VIDEO, settingsSnapshot = AppSettings(videoMaxHeight = 60)), video) }.exceptionOrNull() is IllegalArgumentException)
     }
+    @Test fun fStrictAudioAndVideoSizeCaps() = runBlocking {
+        val runtime = app.runtime
+        withContext(Dispatchers.IO) { runtime.initialize() }
+        val limiter = com.barebonesdownloader.android.media.MediaSizeLimiter(runtime, app.diagnostics)
+        val audio = File(app.cacheDir, "cap-input.wav")
+        runtime.execute(UUID.randomUUID(), runtime.ffmpeg, listOf("-v", "error", "-nostdin", "-y", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=44100", "-t", "10", "-ac", "2", "-c:a", "pcm_s16le", audio.path))
+        val item = DownloadItem(sourceUrl = "owned", settingsSnapshot = AppSettings(audioMaxSizeMb = 1))
+        assertTrue(audio.length() >= 1_000_000)
+        val reduced = limiter.apply(item, audio, File(app.cacheDir, "cap-audio"))
+        assertTrue(reduced.length() in 1 until 1_000_000)
+        assertEquals("m4a", reduced.extension)
+        assertEquals(reduced, limiter.apply(item, reduced, File(app.cacheDir, "cap-untouched")))
+        assertTrue(runCatching { limiter.applyBytes(item, audio, File(app.cacheDir, "cap-impossible"), 100) }.exceptionOrNull() is com.barebonesdownloader.android.media.SizeLimitImpossible)
+        val video = File(app.cacheDir, "cap-input.mp4")
+        runtime.execute(UUID.randomUUID(), runtime.ffmpeg, listOf("-v", "error", "-nostdin", "-y", "-f", "lavfi", "-i", "testsrc2=size=640x360:rate=20", "-f", "lavfi", "-i", "sine=frequency=440", "-t", "8", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "0", "-c:a", "aac", video.path))
+        assertTrue("Video fixture must exercise reduction", video.length() >= 1_000_000)
+        val vitem = item.copy(id = UUID.randomUUID(), kind = DownloadKind.VIDEO, settingsSnapshot = AppSettings(videoMaxSizeMb = 1))
+        val vreduced = limiter.apply(vitem, video, File(app.cacheDir, "cap-video"))
+        assertTrue(vreduced.length() in 1 until 1_000_000)
+        YtDlpGateway(runtime, app.diagnostics).validate(vitem, vreduced)
+        listOf(reduced, vreduced).forEach { runtime.execute(UUID.randomUUID(), runtime.ffmpeg, listOf("-v", "error", "-nostdin", "-i", it.path, "-f", "null", "-")) }
+        Log.i("BBD_INTEGRATION", "CAPS verified audio=${reduced.length()} video=${vreduced.length()} strict bytes; impossible failed.")
+    }
     @Test fun bCancellationTerminatesNativeDescendant() = runBlocking {
         val runtime = app.runtime; val id = UUID.randomUUID(); val child = CompletableDeferred<Int>()
         val command = "import subprocess,sys,time; p=subprocess.Popen([sys.executable,'-c','import time;time.sleep(90)']); print('CHILD='+str(p.pid),flush=True); time.sleep(90)"

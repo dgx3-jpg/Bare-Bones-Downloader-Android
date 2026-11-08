@@ -62,3 +62,9 @@ Current app: **0.3.0 / code 5**, stable package `com.barebonesdownloader.android
 - [Download APK artifact](https://github.com/dgx3-jpg/Bare-Bones-Downloader-Android/actions/runs/42501942123/artifacts/13625932512): extract `app-debug.apk` from the ZIP. Version **0.3.0 / code 5**; artifact ZIP SHA-256 `7059ff0481535d5b1b35a93d69a56613bb77d7c92a655a7c3140dc9853a5c12c`. [Native reports](https://github.com/dgx3-jpg/Bare-Bones-Downloader-Android/actions/runs/42501942123/artifacts/13626286355).
 
 Milestones 4–6 have not been implemented.
+
+## Milestone 4 candidate — 0.4.0 / code 6
+
+Independent strict decimal-MB caps are implemented. Under-cap files pass through unchanged; oversized audio uses the selected lossy codec or AAC-in-M4A for Best/lossless, and video remains H.264/AAC. Probed-duration budgets reduce conservatively over at most seven attempts. Impossible caps fail without publication. SAF enforces the cap again and verifies SHA-256 read-back as well as length. Existing collision, blocked-folder recovery, retained private partials and explicit Retry remain in use.
+
+Local unit tests and APK/instrumentation compilation passed. Added tests cover decimal boundaries, large cap overflow, invalid durations and bounded budgeting; Android tests exercise actual under/over/impossible caps with owned media. Native execution and lint results are pending in the milestone-4 Actions run. Metadata overhead/final tag handling will be integrated in M5.

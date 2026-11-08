@@ -18,8 +18,8 @@ android {
         applicationId = "com.barebonesdownloader.android"
         minSdk = 29
         targetSdk = 36
-        versionCode = 5
-        versionName = "0.3.0"
+        versionCode = 6
+        versionName = "0.4.0"
         buildConfigField("String", "EXTRACTOR_SHA256", "\"e51e69e89489f199530f13d32a4342da3ddb2cf34842f364603a066db05afbf3\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
