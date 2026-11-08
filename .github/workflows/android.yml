@@ -26,7 +26,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      BBD_DEBUG_KEYSTORE_PATH: ${{ runner.temp }}/bbd-signing/debug.keystore
+      BBD_DEBUG_KEYSTORE_PATH: /tmp/bbd-signing/debug.keystore
       BBD_VERIFY_ONLY: ${{ inputs.verification_only }}
     steps:
       - uses: actions/checkout@v4
@@ -44,7 +44,7 @@ jobs:
         if: inputs.verification_only != true
         uses: actions/cache@v4
         with:
-          path: ${{ runner.temp }}/bbd-signing/debug.keystore
+          path: ${{ env.BBD_DEBUG_KEYSTORE_PATH }}
           key: bare-bones-android-debug-signing-v2
       - name: Enforce update-compatible debug signing
         env:
@@ -77,7 +77,7 @@ jobs:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     env:
-      BBD_DEBUG_KEYSTORE_PATH: ${{ runner.temp }}/bbd-signing/debug.keystore
+      BBD_DEBUG_KEYSTORE_PATH: /tmp/bbd-signing/debug.keystore
       BBD_VERIFY_ONLY: ${{ inputs.verification_only }}
     timeout-minutes: 25
     steps:
@@ -96,7 +96,7 @@ jobs:
         if: inputs.verification_only != true
         uses: actions/cache@v4
         with:
-          path: ${{ runner.temp }}/bbd-signing/debug.keystore
+          path: ${{ env.BBD_DEBUG_KEYSTORE_PATH }}
           key: bare-bones-android-debug-signing-v2
       - name: Enforce update-compatible debug signing
         env:
