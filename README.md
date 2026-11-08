@@ -2,7 +2,7 @@
 
 Native Kotlin / Compose Android app following [design v2](ANDROID_DOWNLOADER_SPEC.md), with the [desktop app](https://github.com/dgx3-jpg/BareBonesDownloader) as its behavior/visual reference. Package ID `com.barebonesdownloader.android`, Android 10+ (API 29), current milestones-2-and-3 candidate **0.3.0 / code 5**.
 
-**Verification limit:** the live YouTube acceptance gate is blocked in CI by “Sign in to confirm you're not a bot.” No successful YouTube download/save is claimed. The app does not implement login, cookie imports or evasion. See [implementation status](IMPLEMENTATION_STATUS.md) for exact passing tests and blocked checks. The owner authorized continuing milestone 3 with this live-verification limit recorded.
+**Verification limit:** the live YouTube acceptance gate is blocked in CI by “Sign in to confirm you're not a bot.” No successful YouTube download/save is claimed. The app does not implement login, cookie imports or evasion. See [implementation status](IMPLEMENTATION_STATUS.md) for exact passing tests and blocked checks. The owner authorized continuing milestone 3 with this live-verification limit recorded. The updated extractor was tested and encountered the same restriction.
 
 ## Build / APK
 
@@ -15,7 +15,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 Windows: `gradlew.bat`. Gradle 8.13 is checksum-verified; AGP 8.13.2, Kotlin 2.2.21 and native dependencies are pinned. The universal debug APK includes four ABIs and is about 226 MB. No Windows tools or FFmpegKit is used.
 
-[Actions → Android debug APK](https://github.com/dgx3-jpg/Bare-Bones-Downloader-Android/actions/workflows/android.yml) publishes **app-debug-apk** and verification reports after successful builds. Download the artifact ZIP and extract `app-debug.apk`. The optional manual workflow runs real Android native tests; its **live** input is separate from the independent fixture checks. Live tests use an attributed Creative Commons Blender clip and are intentionally opt-in.
+[Actions → Android debug APK](https://github.com/dgx3-jpg/Bare-Bones-Downloader-Android/actions/workflows/android.yml) publishes **app-debug-apk** and verification reports after successful builds. [Download 0.3.0 APK artifact](https://github.com/dgx3-jpg/Bare-Bones-Downloader-Android/actions/runs/42501942123/artifacts/13625932512), then extract `app-debug.apk` from the ZIP. Build/23 JVM tests and independent native format/SAF/cancellation checks passed; the opt-in live test failed authentication, so that overall workflow is marked failed. The optional manual workflow runs real Android native tests; its **live** input is separate from the independent fixture checks. Live tests use an attributed Creative Commons Blender clip and are intentionally opt-in.
 
 ## Current implementation
 

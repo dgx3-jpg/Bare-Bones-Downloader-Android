@@ -4,7 +4,7 @@ Reference: `dgx3-jpg/BareBonesDownloader`, audited in design v2. No desktop code
 
 | Desktop behavior | Android counterpart | Verification / remaining scope |
 | --- | --- | --- |
-| DownloaderForm / YoutubeUrl | Compose main screen, strict canonical single-item YouTube parser, mixed-input retention, persistent FIFO and duplicate reservations | JVM/UI/Room tests; actual native and SAF tests. Live YouTube authentication blocked an older-extractor CI run. |
+| DownloaderForm / YoutubeUrl | Compose main screen, strict canonical single-item YouTube parser, mixed-input retention, persistent FIFO and duplicate reservations | JVM/UI/Room tests; actual native and SAF tests. Live YouTube authentication blocked CI with both old and updated extractors. |
 | SettingsForm / SettingsStore | Five draft sections, Save/Cancel, DataStore normalization, immutable per-job snapshots, independent SAF folders | Persistence, Room migration, UI tests and real DocumentsUI grant/read-back |
 | AudioFormats / AudioEncoding | All nine formats, default compatible copy, explicit quality/bitrate encoding with actual encoder checks | Native owned-media encode/decode matrix; results in status. No quality improvement claim. |
 | VideoOutput | H.264/AAC MP4 selectors, all seven height ceilings, actual codec/container/height validation | Owned H.264/AAC fixture and height rejection; live extraction remains separate |

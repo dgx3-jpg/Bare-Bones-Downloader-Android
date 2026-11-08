@@ -1,6 +1,6 @@
 # Third-party notices
 
-The current M2 candidate bundles yt-dlp/Python/QuickJS and FFmpeg/ffprobe through pinned youtubedl-android 0.18.1. Native versions, ABI inventory, GPL obligations and source/build references are recorded in docs/NATIVE_RUNTIME.md. Metadata/tagging and ReplayGain integrations are not implemented.
+The current M2/M3 candidate bundles Python/QuickJS and FFmpeg/ffprobe through pinned youtubedl-android 0.18.1, plus checksum-pinned official yt-dlp 2026.10.26 (including its bundled EJS solver). Native versions, ABI inventory, GPL obligations and source/build references are recorded in docs/NATIVE_RUNTIME.md. Metadata/tagging and ReplayGain integrations are not implemented.
 
 The Penrose icon is copied from the user’s desktop repository (`assets/penrose-white-grey.svg`, blob `997c55bfa1ac3e26f42229a2fdd0b09278169084`) and converted to Android vector/adaptive resources without redesign. Its original ownership is unchanged.
 

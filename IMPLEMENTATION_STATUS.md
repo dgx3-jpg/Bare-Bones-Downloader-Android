@@ -25,7 +25,7 @@ GRADLE_OPTS='-Dhttps.proxyHost=proxy -Dhttps.proxyPort=8080 -Dhttp.proxyHost=pro
   testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest
 ```
 
-M2 local command passed all 20 JVM/Robolectric tests. M3 adds encoding-mode, encoder-limit, locale and every-selector-fallback tests; final verification is recorded below. Coverage: settings/defaults/persistence, strict parsing and spoof/collection/live rejection, names/Unicode, format preference availability, input/mode/draft behavior, Room snapshots and duplicate reservations, FIFO/failure/folder recovery, non-destructive schema 1→2 history migration, and safe error classification. Scheduling tests use explicit fakes, not native output. Lint passed with no errors; warnings remain. App and instrumentation APKs compiled. Reports are under `app/build/reports/` and `app/build/test-results/`.
+M2 local command passed all 20 JVM/Robolectric tests. M3 local and CI verification passed **23 JVM/Robolectric tests**, lint (zero errors), debug APK and instrumentation compilation. Added coverage includes encoding modes, encoder limits, locale and every selector fallback. Coverage: settings/defaults/persistence, strict parsing and spoof/collection/live rejection, names/Unicode, format preference availability, input/mode/draft behavior, Room snapshots and duplicate reservations, FIFO/failure/folder recovery, non-destructive schema 1→2 history migration, and safe error classification. Scheduling tests use explicit fakes, not native output. Lint passed with no errors; warnings remain. App and instrumentation APKs compiled. Reports are under `app/build/reports/` and `app/build/test-results/`.
 
 ## Actual Android emulator / live evidence
 
@@ -45,8 +45,20 @@ No physical phone testing was performed. Local emulator installation/startup was
 - All seven video height ceilings apply to both selector alternatives; output checks reject exceeding height, wrong codecs/container and cover-art-only video.
 - Unicode/UTF-8 bounded names, reserved names including `CON.txt`, audio title-only and video source-ID names, optional URL suffix and collision protection.
 - Official yt-dlp 2026.10.26 is build-time downloaded, SHA-256 verified and pinned into the APK; a hash-checked replacement refreshes stale app-private unpacked extractors. No in-app updater.
-- Android tests generate owned PCM audio, encode/decode all nine formats and every supported mode, verify compatible copy versus explicit re-encode, and enforce a real video height ceiling. Execution results follow when CI completes.
+- Android tests generate owned PCM audio, encode/decode all nine formats and every supported mode, verify compatible copy versus explicit re-encode, and enforce a real video height ceiling. All these checks passed on Android 10/x86_64 in the run below.
 
-M2's design says “Test real audio AND video before proceeding.” Real owned audio/video native processing and SAF publication passed; the intended live YouTube extraction/save gate remains blocked in the older extractor's CI run. The owner authorized proceeding with M3. No login/cookies/evasion is added; current-extractor live verification remains separate.
+M2's design says “Test real audio AND video before proceeding.” Real owned audio/video native processing and SAF publication passed; the intended live YouTube extraction/save gate remains blocked with the updated extractor too. The owner authorized proceeding with M3. No login/cookies/evasion is added; current-extractor live verification failed honestly and remains an acceptance limit.
 
 Current app: **0.3.0 / code 5**, stable package `com.barebonesdownloader.android`. Debug identity uses the existing cached key; cache eviction remains a signing-continuity limitation. [Actions APKs/reports](https://github.com/dgx3-jpg/Bare-Bones-Downloader-Android/actions/workflows/android.yml), [native provenance/licenses](docs/NATIVE_RUNTIME.md), [parity map](docs/DESKTOP_PARITY.md). Native GPL distribution obligations apply; this remains the owner's private personal-use build.
+
+## Final M3 evidence / APK
+
+[Run 42501942123](https://github.com/dgx3-jpg/Bare-Bones-Downloader-Android/actions/runs/42501942123), source `1f0d04c0b0611969a8d9d8d4f7c9ae5de2e0ef08`:
+
+- Build job passed; HTML report confirms 23 tests, 0 failures, 0 ignored; lint and APK build passed.
+- Android instrumented report: **5 tests, 4 passed, 1 failed, 0 skipped**. Actual yt-dlp **2026.10.26** and FFmpeg/ffprobe **7.1.1** executed.
+- Passing: native H.264/AAC fixture, descendant cancellation, real SAF audio/video read-back/collision/cancel cleanup, all nine audio formats and every supported encoding mode. The format matrix decoded 22 outputs (nine defaults, eight variable-quality endpoints, five bitrate choices); compatible AAC copy and explicit AAC re-encode assertions also passed. Real video height validation passed.
+- The only failure is the opt-in live YouTube case: both audio and video jobs received “Sign in to confirm you're not a bot”, surfaced as `AUTH_REQUIRED`. No file was reported saved. The overall workflow is therefore marked failed despite the successful build and independent native checks; it is not an all-green live acceptance run.
+- [Download APK artifact](https://github.com/dgx3-jpg/Bare-Bones-Downloader-Android/actions/runs/42501942123/artifacts/13625932512): extract `app-debug.apk` from the ZIP. Version **0.3.0 / code 5**; artifact ZIP SHA-256 `7059ff0481535d5b1b35a93d69a56613bb77d7c92a655a7c3140dc9853a5c12c`. [Native reports](https://github.com/dgx3-jpg/Bare-Bones-Downloader-Android/actions/runs/42501942123/artifacts/13626286355).
+
+Milestones 4–6 have not been implemented.
