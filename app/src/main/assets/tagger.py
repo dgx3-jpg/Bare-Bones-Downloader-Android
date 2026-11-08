@@ -61,7 +61,7 @@ def write(audio,values,rg):
             elif key in atoms: tags[atoms[key]]=[value]
         for key,value in rg.items(): tags['----:com.apple.iTunes:'+key]=[MP4FreeForm(value.encode('utf-8'))]
     else:
-        for key in list(tags):
+        for key in list(tags.keys()):
             if canon(key) in keys+rgkeys: del tags[key]
         for key,value in dict(values,**rg).items(): tags[key]=[value]
     audio.save()
