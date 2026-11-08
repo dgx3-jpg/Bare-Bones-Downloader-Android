@@ -21,7 +21,7 @@ import org.junit.runners.MethodSorters
 import java.io.File
 import java.util.UUID
 
-/** Real Android runtimes and SAF. The live source is yt-dlp's public test video. */
+/** Real Android runtimes and SAF. Live source: Blender Foundation Big Buck Bunny, CC BY 3.0; see native provenance. */
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 class NativeIntegrationTest {
     @get:Rule val ui = createAndroidComposeRule<MainActivity>()
@@ -87,12 +87,12 @@ class NativeIntegrationTest {
         val selected = withTimeout(10_000) { app.settings.settings.first { it.audioFolderUri != null } }
         val prefs = selected.copy(videoFolderUri = selected.audioFolderUri, videoFolderName = selected.audioFolderName)
         app.settings.update { prefs }
-        val source = "https://www.youtube.com/watch?v=BaW_jenozKc"
+        val source = InstrumentationRegistry.getArguments().getString("source") ?: "https://www.youtube.com/watch?v=aqz-KE-bpKQ"
         app.downloads.enqueue(source, DownloadKind.AUDIO, prefs)
         app.downloads.enqueue(source, DownloadKind.VIDEO, prefs)
         val ids = app.database.downloads().all().takeLast(2).map { it.id }.toSet()
         ui.runOnUiThread { ui.activity.startForegroundService(Intent(ui.activity, DownloadForegroundService::class.java)) }
-        val results = withTimeout(300_000) { app.downloads.items.first { rows -> rows.filter { it.id in ids }.let { it.size == 2 && it.all { row -> row.status in setOf(DownloadStatus.COMPLETED, DownloadStatus.FAILED, DownloadStatus.SKIPPED, DownloadStatus.BLOCKED, DownloadStatus.INTERRUPTED) } } } }.filter { it.id in ids }
+        val results = withTimeout(600_000) { app.downloads.items.first { rows -> rows.filter { it.id in ids }.let { it.size == 2 && it.all { row -> row.status in setOf(DownloadStatus.COMPLETED, DownloadStatus.FAILED, DownloadStatus.SKIPPED, DownloadStatus.BLOCKED, DownloadStatus.INTERRUPTED) } } } }.filter { it.id in ids }
         Log.i("BBD_INTEGRATION", app.diagnostics.text.value)
         results.forEach { item ->
             assertEquals(item.errorMessage, DownloadStatus.COMPLETED, item.status)

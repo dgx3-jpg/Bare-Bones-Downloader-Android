@@ -27,3 +27,7 @@ Archive inspection of the x86_64 libavutil configuration found `--enable-gpl --e
 Only initialization/unpacking is delegated to upstream. Its blocking `execute` and `destroyProcessById` are not used: the latter interpolates an ID into a shell command and does not provide the process-group guarantee needed here. `NativeRuntime` starts each trusted executable through a constant Python launcher with structured arguments, creates a fresh POSIX session and records its actual PID before exec. A stdin handshake prevents exec/child creation until the parent registers that process group. Cancellation kills that process group and drains output. URL/title text is never concatenated into a shell command. A real Android descendant-cancellation test must pass; host JVM fakes do not prove this behavior.
 
 Extractor updates are through pinned app releases. No automatic, unsigned remote runtime update or custom extractor is implemented.
+
+## Live integration fixture
+
+Blender Foundation / Blender Institute, **Big Buck Bunny** (2008), Creative Commons Attribution 3.0: https://peach.blender.org/about/ and https://creativecommons.org/licenses/by/3.0/. Public YouTube fixture: `aqz-KE-bpKQ` (official Blender Foundation edition). Used solely for private opt-in extraction/saving tests; media files are not uploaded in APK/report artifacts. Attribution and license remain with the creators. The older yt-dlp test video `BaW_jenozKc` returned “This video is unavailable” on the Android test date.
