@@ -1,25 +1,22 @@
-# Implementation status
+# Implementation status — design v2
 
-Scope: milestone 1 only. Last updated: 2026-11-08.
+Scope: updated **milestone 1 only**, 2026-11-08. The earlier audio-only shell has been revised to match the uploaded v2 design. Milestones 2–6 have not been started.
 
-## Implemented
+## Changes and working shell features
 
-- Single-activity Kotlin/Compose/Material 3 app with Home, Queue, History, Settings and dynamic/system colour themes.
-- URL input with explicit clipboard Paste, HTTP(S) validation, and a blocking SAF folder-selection prompt. Persistable folder permission is requested; no media is written.
-- Settings defaults from the specification, DataStore Preferences persistence, all format/quality controls, metadata switches, illustrative static Come Together tag preview and ReplayGain controls.
-- Room entity/DAO/database/converters, exported schema, repository contract and enqueue-time settings snapshots.
-- Shared progress/status cards, demo queue actions, history confirmation and About/license information.
-- Pinned Gradle wrapper/toolchain/dependencies, build instructions and automated tests.
-
-## Fake data and deferred work
-
-All queue/history items and progress are explicitly **fake**. The app uses an in-memory FakeDownloadRepository; Room is defined and tested separately, not connected to the UI. Demo data resets after process death. No extraction, download, conversion, tagging, ReplayGain analysis, file saving/opening/sharing, foreground service, extractor update or Android share target is implemented. Disabled controls and the persistent demo banner make this visible.
+- Main utility screen replaces four bottom-navigation tabs: Audio/Video mode switch, per-type destination, multiline input, Queue audio/Queue video, Cancel current, Clear waiting, URL/Type/Status placeholder cards and collapsible/copyable diagnostics capped at 60,000 characters. Switching mode preserves input and queued data; fresh ViewModel launches default to Audio.
+- General, Audio, Video, Metadata, Appearance settings with isolated draft, Save and Cancel/back. Real DataStore persistence, normalization/corruption fallback, two SAF folder preferences, human-readable names, persistable grants and changed-folder write/create checks. Native picker/provider behavior is not device-tested.
+- Nine audio format preferences, format-dependent quality controls, quality 0–10 / bitrate 32–512, independent size caps and seven video height choices. No encoder claim.
+- All 11 metadata selections default ON; static Here Comes the Sun / The Beatles / Abbey Road preview; format-specific Unavailable labels. ReplayGain preference defaults ON and is explicitly not implemented.
+- Explicit persisted Light/Dark, desktop palette and SVG-derived Penrose adaptive icon. Android 10+; package `com.barebonesdownloader.android`, display name Bare Bones Downloader, version 0.1.1/code 2.
+- Room schema includes kind, destination and complete immutable settings snapshots; database round-trip verified. Demo UI stays in-memory, not a persistent or functional download queue.
+- GitHub Actions workflow tests/builds debug APK and uploads `app-debug-apk` plus reports. See README for artifact download and signing caveats.
 
 ## Verification
 
-Completed in the managed Linux environment on 2026-11-08 using OpenJDK 21.0.13 (JDK compiler extracted from the matching official Debian security package), Android SDK 36 and Build Tools 35.0.0.
+Local toolchain: OpenJDK 21.0.13, SDK 36, Build Tools 35.0.0; pinned Gradle 8.13 / AGP 8.13.2 / Kotlin 2.2.21.
 
-Exact final build/test command, from the repository root:
+Exact final local command from the repository root:
 
 ```sh
 JAVA_HOME=/workspace/work/jdk21 \
@@ -27,29 +24,36 @@ ANDROID_USER_HOME=/workspace/work/android-user \
 GRADLE_USER_HOME=/workspace/work/gradle-home \
 GRADLE_OPTS='-Dhttps.proxyHost=proxy -Dhttps.proxyPort=8080 -Dhttp.proxyHost=proxy -Dhttp.proxyPort=8080' \
 ./gradlew --init-script /workspace/work/proxy.init.gradle \
-  assembleDebug testDebugUnitTest lintDebug assembleDebugAndroidTest
+  testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest
 ```
 
-The local init script forwards the four proxy system properties to test JVMs and sets their maximum heap to 1536 MB. It contains no credentials. This environment-specific script is outside Git; ordinary local builds use the commands in README. Test JVMs keep Robolectric's cache/lock in `app/build/test-home` via project configuration.
+The local init script only forwards proxy properties and sets test heap size to 1536 MB. Test JVM caches/locks use `app/build/test-home`. Ordinary local commands are in README.
 
-**Result: BUILD SUCCESSFUL (51 seconds).**
+**BUILD SUCCESSFUL in 1m 3s. All 12 tests passed:**
 
-| Check | Actual evidence |
+| Coverage | Actual result |
 | --- | --- |
-| Debug app | `assembleDebug` passed; `app/build/outputs/apk/debug/app-debug.apk` (about 13 MB) |
-| Model/defaults/validation/demo snapshots | 4 JUnit tests passed |
-| DataStore persistence | 1 test passed: writes all settings, closes DataStore, reopens same on-disk file and verifies values |
-| Room schema | 1 Robolectric API 35 test passed: entity/UUID/enums/settings round-trip and atomic history deletion |
-| Compose UI | 3 Robolectric API 35 tests passed: four-tab navigation/history confirmation, invalid URL/folder prompt, metadata toggle/illustrative preview |
-| Lint | `lintDebug` passed: 0 errors, 18 warnings; mainly newer dependency releases, plus resource access, backup-rule recommendation, KAPT recommendation and missing explicit launcher icon |
-| Device-test APK | `assembleDebugAndroidTest` passed; device navigation smoke test compiled, **not executed on device** |
+| V2 defaults, corruption/normalization, supported quality modes, preview compatibility, shell HTTP validation, full per-type settings snapshots | 6 JUnit tests passed |
+| Save/Cancel isolation, mixed-input retention, mode-specific destination gate, log bound | 1 ViewModel test passed |
+| All v2 settings survive closing/reopening real on-disk DataStore | 1 test passed |
+| Room schema/entity/type/destination/complete settings round-trip | 1 Robolectric API 35 test passed |
+| Mode/input/picker-prompt cancellation, five settings sections, Save/Cancel/theme persistence, metadata preview toggles | 3 Robolectric API 35 UI tests passed |
+| `assembleDebug` | Passed: `app/build/outputs/apk/debug/app-debug.apk` |
+| `assembleDebugAndroidTest` | Passed: instrumentation smoke test compiled; not executed on device |
+| `lintDebug` | Passed; no errors. Warnings are recorded in the generated lint report. |
 
-Reports are generated under `app/build/test-results/testDebugUnitTest/`, `app/build/reports/tests/testDebugUnitTest/` and `app/build/reports/lint-results-debug.html`. Room schema v1 is checked in under `app/schemas/`.
+The first revised shell build also passed. One test initially targeted an off-screen Appearance tab without scrolling; the test was corrected and the full suite passed. No assertion was removed. Local reports: `app/build/test-results/testDebugUnitTest/`, `app/build/reports/tests/testDebugUnitTest/`, `app/build/reports/lint-results-debug.html`.
 
-Earlier environment-only attempts failed because Java initially lacked a compiler, the wrapper needed explicit Java proxy properties, and Robolectric attempted a lock in a read-only home directory. These were resolved; the final full command passed. Pinned versions are verified working together, not claimed to be the newest releases.
+GitHub Actions run/artifact verification: pending first push of this workflow; no remote run is claimed yet.
 
-**No physical device or emulator verification was performed.** Robolectric provides simulated Android verification, not device testing. SAF picker/permission retention, TalkBack, font scaling and minimum-API hardware behavior remain manual checks. There are no milestone-1 build/test blockers; real extraction, media, and background acceptance tests remain unverified and out of scope.
+## Limits and remaining work
 
-## Next milestone
+No physical device/emulator verification performed. Robolectric is simulated Android testing. Native SAF provider behavior, actual adaptive launcher rendering, TalkBack/scaled type and minimum-API device behavior remain manual checks. No real downloads, metadata writes, ReplayGain scans, transcoding, codec/size validation, strict YouTube extraction/duplicates, staging/publication or background service exists. All queue/progress/log download activity is clearly labelled placeholder data.
 
-Milestone 2: verify/pin compatible yt-dlp and FFmpeg integrations (including licenses/ABIs), inspect and download one real audio item in Original mode, and save it through SAF. Do not start it without the user's instruction.
+The v2 package ID is different from the v1 draft; that draft cannot update in place into v2 or transfer its preferences automatically. V2 identity/schema is the baseline from here. Local signing remains stable while its debug key is preserved. Actions caches its debug key, but cache eviction changes that identity; durable update-safe signing remains M6. No keys or secrets are committed or included in APK artifacts.
+
+Desktop reference mapping and test limits: [docs/DESKTOP_PARITY.md](docs/DESKTOP_PARITY.md). No claim of full desktop parity.
+
+## Next action
+
+Stop after M1. On the user's next instruction, M2 is real YouTube audio AND H.264/AAC video extraction, FIFO/duplicate reservations, separate SAF destinations, staged saving/cancellation and foreground service; verify actual audio/video before moving on.

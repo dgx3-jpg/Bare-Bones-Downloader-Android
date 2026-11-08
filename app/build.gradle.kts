@@ -6,14 +6,14 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 android {
-    namespace = "com.barebones.downloader"
+    namespace = "com.barebonesdownloader.android"
     compileSdk = 36
     defaultConfig {
-        applicationId = "com.barebones.downloader"
-        minSdk = 26
+        applicationId = "com.barebonesdownloader.android"
+        minSdk = 29
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.1.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildFeatures { compose = true; buildConfig = true }

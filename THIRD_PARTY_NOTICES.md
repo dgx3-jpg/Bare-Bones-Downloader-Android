@@ -2,7 +2,7 @@
 
 No yt-dlp, FFmpeg, tagging engine, media fixture, or native codec is bundled yet. Their versions, ABI support and license obligations must be assessed in milestone 2 before integration.
 
-The Paste button uses Google’s Material Content Paste icon (Apache-2.0).
+The Penrose icon is copied from the user’s desktop repository (`assets/penrose-white-grey.svg`, blob `997c55bfa1ac3e26f42229a2fdd0b09278169084`) and converted to Android vector/adaptive resources without redesign. Its original ownership is unchanged.
 
 Runtime dependencies (including their AndroidX/Kotlin transitive modules):
 

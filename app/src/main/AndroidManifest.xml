@@ -1,6 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application android:name=".DownloaderApplication" android:allowBackup="false"
-        android:label="Downloader" android:supportsRtl="true" android:theme="@style/Theme.Downloader">
+        android:label="Bare Bones Downloader" android:icon="@mipmap/ic_launcher" android:supportsRtl="true" android:theme="@style/Theme.Downloader">
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

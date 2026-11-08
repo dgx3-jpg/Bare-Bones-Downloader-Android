@@ -1,42 +1,41 @@
-# Bare Bones Downloader — Android
+# Bare Bones Downloader for Android
 
-Native Kotlin / Jetpack Compose / Material 3 Android app. **Milestone 1 is a UI scaffold:** every queue/history item is fake, progress is static, and no media is downloaded, processed, opened, or shared. Settings are real and persist locally.
+Standalone native Android shell following [design v2](ANDROID_DOWNLOADER_SPEC.md), using the [Windows app](https://github.com/dgx3-jpg/BareBonesDownloader) as its behavioral/visual reference. **Milestone 1 only:** queue/progress/log activity is illustrative; no extraction, audio/video processing or file publication is implemented.
 
-## Build
+## Build and install
 
-Open this repository root in Android Studio, or install JDK 17 or 21 and Android SDK Platform 36 / Build Tools 35.0.0. Set `ANDROID_HOME` to the SDK, or put `sdk.dir=/your/sdk/path` in an untracked `local.properties`.
+Open the repository root in Android Studio, or install JDK 17/21, Android SDK Platform 36 and Build Tools 35.0.0. Set `ANDROID_HOME` or create an untracked `local.properties` with `sdk.dir=/your/sdk/path`.
 
 ```sh
-./gradlew assembleDebug
-./gradlew testDebugUnitTest lintDebug
-./gradlew assembleDebugAndroidTest
-# Requires a connected API 26+ phone/emulator:
+./gradlew testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest
+# With an Android 10+ device/emulator connected:
 ./gradlew connectedDebugAndroidTest
+adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-Windows: use `gradlew.bat` instead of `./gradlew`. The wrapper pins Gradle 8.13 and verifies its distribution SHA-256. Android Gradle Plugin 8.13.2, Kotlin 2.2.21, Compose BOM 2025.10.01 and all other direct dependencies are pinned in Gradle files. Compile/target SDK 36 is supported by this toolchain; minSdk is 26. No extractor or native FFmpeg dependency is bundled in this milestone.
+Use `gradlew.bat` on Windows. Gradle 8.13 is checksum verified; AGP 8.13.2, Kotlin 2.2.21 and dependency versions are pinned. SDK 36 compile/target, minSdk 29. Robolectric tests run simulated API 35; they do not establish device integration.
 
-The debug APK is `app/build/outputs/apk/debug/app-debug.apk`. Install with `adb install -r app/build/outputs/apk/debug/app-debug.apk`. Debug signing is automatic. Release signing is not configured; a signed release APK and full release instructions belong to milestone 6. Never commit signing keys.
+**GitHub APK:** open [Actions → Android debug APK](https://github.com/dgx3-jpg/Bare-Bones-Downloader-Android/actions/workflows/android.yml), choose a successful run, then download **app-debug-apk** under Artifacts and unzip `app-debug.apk`. Signing keys are never included in the artifact. CI runs on pushes/PRs and can be run manually. Build/test reports are a separate artifact.
 
-In a proxy-managed cloud environment, set `GRADLE_OPTS` with your Java HTTP/HTTPS proxy settings; the wrapper bootstrap requires those settings too. Keep local Gradle caches, Android user state, and SDK/JDK installations outside Git.
+## Shell behavior
 
-## What to try
+- Main screen: fresh-launch Audio only, Video + audio switch, type-specific destination, multiline links with explicit Paste, Queue audio/Queue video, Cancel current, Clear waiting, compact URL/Type/Status cards and a collapsible/copyable log capped at 60,000 characters.
+- Mode changes preserve input and queued placeholders. Folder selection is requested only for the relevant type. Cancelling keeps input. The shell does basic HTTP(S) validation and retains rejected tokens; real YouTube normalization, duplicate reservations and extraction are milestone 2.
+- Settings gear opens General / Audio / Video / Metadata / Appearance. Changes remain draft until Save; Cancel/back discards them. Two SAF destinations can be the same. Changes to folder selections are checked for persisted write/create permission on Save, without writing media.
+- Nine format choices, supported encoding controls, independent decimal-MB caps and resolution settings are saved **preferences**, not working encoders. Unsupported quality modes are disabled. Defaults match the desktop: best/default/quality 5/192 kbps, caps off, all 11 metadata fields and ReplayGain on, Light theme.
+- Metadata preview is the static Here Comes the Sun / Beatles / Abbey Road example. Deselection clears values; AAC/ALAC/M4A source URL and WAV composer/source URL/album artist show Unavailable. No network lookup or artwork is implied.
+- Light/Dark is explicit and persisted. Penrose adaptive icon is converted from the original SVG. Room schema includes type, destination and complete settings snapshots; demo UI remains in-memory. No worker/background service or persistent real queue is claimed.
 
-- Navigate Home, Queue, History, and Settings using the bottom bar.
-- Paste a URL explicitly, or type one; malformed/non-HTTP URLs show a validation message.
-- Choose a save folder with Android's folder picker before adding a valid URL. The app retains URI permission and stores the selection, but does not write files yet. Tap Add to queue again after choosing.
-- Change format/quality, metadata fields or ReplayGain and restart the app. These choices persist through DataStore Preferences. FLAC/WAV show Source-limited quality.
-- Open Preview tags: the Come Together example is static and labelled illustrative. Disabled fields disappear; absent values remain empty.
-- Demo queue actions change in-memory state only. Demo Open/Share and extractor updates are disabled. Queue/history reset when the process restarts. Clear history requires confirmation and never touches media.
+## Identity and signing
 
-## Structure
+The v2-required ID is **com.barebonesdownloader.android**, display name Bare Bones Downloader, version 0.1.1 (code 2). This replaces the previous audio-only scaffold's `com.barebones.downloader`; Android treats it as a separate app, so it cannot inherit that draft's data through an in-place update. This v2 identity is the baseline for future milestones; retain it and migrate Room schemas from here.
 
-- `ui/`: navigation, four screens, shared cards, theme, and ViewModel.
-- `domain/model/`: settings defaults, immutable enqueue snapshots, statuses, Room entity.
-- `data/settings/`: atomic DataStore settings repository.
-- `data/repository/`: download repository contract and explicit fake implementation.
-- `data/db/`: Room database, DAO, converters and exported v1 schema; not connected to demo UI.
-- `src/test/`: model, on-disk settings persistence, Room and Robolectric Compose UI tests.
-- `src/androidTest/`: device navigation smoke test.
+Local debug builds reuse your SDK's debug keystore; keep it backed up and keep the same key for updates. CI caches its generated debug keystore under `bare-bones-android-debug-signing-v1`. **Caches can expire or be evicted**, so CI signing continuity is best effort until durable signing is configured in milestone 6. CI and local builds may use different debug keys: Android rejects in-place updates between them. Keep the same build source/key, or reinstall (which clears app data). Never commit keys or passwords.
 
-The Room-backed coordinator, engine/services, processing, storage writes and Android share target are intentionally deferred to their specified milestones. See [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) for actual verification and [ANDROID_DOWNLOADER_SPEC.md](ANDROID_DOWNLOADER_SPEC.md) for scope. The uploaded document is recorded as the product specification; task scope remains milestone 1 only.
+No release signing is configured. Signed release readiness, real formats, metadata, ReplayGain and device acceptance gates remain in their specified milestones.
+
+## Code and evidence
+
+Single app module, MVVM/Flow; `ui/`, `domain/model/`, `data/{db,settings,repository}/`, and `storage/`. DataStore persists preferences and normalizes invalid values; Room's schema is tested separately from placeholder UI. The old four-bottom-tab layout and audio-only defaults have been replaced.
+
+See [implementation status](IMPLEMENTATION_STATUS.md), [desktop parity map](docs/DESKTOP_PARITY.md), and [third-party notices](THIRD_PARTY_NOTICES.md). The uploaded document is the product specification; this task implements changes affecting milestone 1 only.
