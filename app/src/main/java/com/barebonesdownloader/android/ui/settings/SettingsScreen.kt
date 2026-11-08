@@ -61,7 +61,7 @@ import com.barebonesdownloader.android.domain.model.*
                         SizeCap("Audio", draft.audioMaxSizeMb, { errors["audioCap"] = it }) { v -> edit { it.copy(audioMaxSizeMb = v) } }
                         Text("Over-cap audio may lose quality; Best available/lossless output becomes AAC-in-M4A if reduction is needed. Tiny limits may be impossible. 1 MB = 1,000,000 bytes.")
                         Check("Add ReplayGain tags", draft.replayGainEnabled, tag = "replay_gain") { v -> edit { it.copy(replayGainEnabled = v) } }
-                        Text("Audio only. Per-track ReplayGain 2.0 tags do not change samples. Not implemented in this shell; processing and verification belong to milestone 5.")
+                        Text("Audio only. Per-track ReplayGain 2.0 analyses final audio and writes verified gain/peak tags without changing samples. Silence or unsupported tags produce a warning.")
                     }
                     2 -> {
                         Choice("Maximum resolution", draft.videoMaxHeight, videoHeights, { if (it == 0) "Best available" else "${it}p" }) { v -> edit { it.copy(videoMaxHeight = v) } }
@@ -92,7 +92,8 @@ import com.barebonesdownloader.android.domain.model.*
     }
     if (notices) AlertDialog(onDismissRequest = { notices = false }, title = { Text("Open-source notices") },
         text = { Column(Modifier.verticalScroll(rememberScrollState())) {
-            Text("Includes youtubedl-android 0.18.1 (GPL-3.0), FFmpeg, Python, QuickJS and AndroidX. No warranty. Corresponding source/build references and distribution obligations: THIRD_PARTY_NOTICES.md and docs/NATIVE_RUNTIME.md in the repository.")
+            Text("Includes youtubedl-android 0.18.1 (GPL-3.0), FFmpeg, Python, QuickJS, Mutagen 1.47.0 (GPL-2.0-or-later) and AndroidX. No warranty. Corresponding source/build references and distribution obligations: THIRD_PARTY_NOTICES.md and docs/NATIVE_RUNTIME.md in the repository.")
+            Text(remember { context.assets.open("mutagen-license.txt").bufferedReader().use { it.readText() } })
             Text(remember { context.resources.openRawResource(R.raw.native_gpl3).bufferedReader().use { it.readText() } })
         } }, confirmButton = { TextButton(onClick = { notices = false }) { Text("Close") } })
 }

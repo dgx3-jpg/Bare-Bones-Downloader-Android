@@ -18,8 +18,8 @@ android {
         applicationId = "com.barebonesdownloader.android"
         minSdk = 29
         targetSdk = 36
-        versionCode = 6
-        versionName = "0.4.0"
+        versionCode = 7
+        versionName = "0.5.0"
         buildConfigField("String", "EXTRACTOR_SHA256", "\"e51e69e89489f199530f13d32a4342da3ddb2cf34842f364603a066db05afbf3\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -103,3 +103,26 @@ val preparePinnedExtractor by tasks.registering {
 }
 android.sourceSets.getByName("main").res.srcDir(extractorResources)
 tasks.named("preBuild").configure { dependsOn(preparePinnedExtractor) }
+
+// Pure-Python tag writer, fixed release and digest, bundled at build time only.
+val tagResources = layout.buildDirectory.dir("generated/tag-res")
+val mutagenResource = tagResources.map { it.file("raw/mutagen") }
+val prepareTagWriter by tasks.registering {
+    inputs.property("sha256", "edd96f50c5907a9539d8e5bba7245f62c9f520aef333d13392a79a4f70aca719")
+    outputs.file(mutagenResource)
+    doLast {
+        val target = mutagenResource.get().asFile
+        target.parentFile.mkdirs()
+        val partial = File(target.parentFile, "mutagen.download")
+        try {
+            val connection = URI("https://files.pythonhosted.org/packages/b0/7a/620f945b96be1f6ee357d211d5bf74ab1b7fe72a9f1525aafbfe3aee6875/mutagen-1.47.0-py3-none-any.whl").toURL().openConnection()
+            connection.connectTimeout = 30_000; connection.readTimeout = 60_000
+            connection.getInputStream().use { input -> partial.outputStream().use(input::copyTo) }
+            val hash = MessageDigest.getInstance("SHA-256").digest(partial.readBytes()).joinToString("") { "%02x".format(it) }
+            check(hash == "edd96f50c5907a9539d8e5bba7245f62c9f520aef333d13392a79a4f70aca719") { "Tag writer checksum mismatch" }
+            Files.move(partial.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
+        } finally { partial.delete() }
+    }
+}
+android.sourceSets.getByName("main").res.srcDir(tagResources)
+tasks.named("preBuild") { dependsOn(prepareTagWriter) }

@@ -37,12 +37,19 @@ class YtDlpGateway(private val runtime: NativeRuntime, private val log: Download
             val audio = extractAudio(item, source, directory)
             AudioConverter(runtime).convert(item, audio, File(directory, "encoding"))
         } else source
-        val output = MediaSizeLimiter(runtime, log).apply(item, encoded, File(directory, "size"))
+        var warnings: List<String> = emptyList()
+        val output = MediaSizeLimiter(runtime, log).apply(item, encoded, File(directory, "size")) { candidate ->
+            if (item.kind == DownloadKind.AUDIO) progress(MediaProgress(DownloadStatus.TAGGING, null))
+            val tagged = com.barebonesdownloader.android.metadata.MetadataProcessor(runtime, log).apply(item, candidate, info, File(directory, "tags"))
+            warnings = tagged.warnings
+            tagged.file
+        }
+        val cap = SizeBudget.bytes(if (item.kind == DownloadKind.AUDIO) item.settingsSnapshot.audioMaxSizeMb else item.settingsSnapshot.videoMaxSizeMb)
+        if (!SizeBudget.fits(output.length(), cap)) throw SizeLimitImpossible()
         validate(item, output)
         log.add("Validated ${item.kind.label} output (${output.length()} bytes).")
         return StagedMedia(output, title, if (item.kind == DownloadKind.VIDEO) "video/mp4" else audioMime(output.extension),
-            if (item.kind == DownloadKind.AUDIO && (item.settingsSnapshot.metadata.enabled.isNotEmpty() || item.settingsSnapshot.replayGainEnabled))
-                "Metadata selection and ReplayGain are not implemented until milestone 5; existing source tags may remain." else null)
+            warnings.takeIf { it.isNotEmpty() }?.joinToString(" "))
     }
     private suspend fun extractAudio(item: DownloadItem, source: File, directory: File): File {
         val probe = probe(item, source)

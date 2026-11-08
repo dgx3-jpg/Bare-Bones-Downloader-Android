@@ -17,11 +17,12 @@ object SizeBudget {
     fun lower(value: Int, minimum: Int) = maxOf(minimum, minOf(value - 1, floor(value * .8).toInt()))
 }
 class MediaSizeLimiter(private val runtime: NativeRuntime, private val log: DownloadLog) {
-    suspend fun apply(item: DownloadItem, input: File, directory: File): File = applyBytes(item, input, directory,
-        SizeBudget.bytes(if (item.kind == DownloadKind.AUDIO) item.settingsSnapshot.audioMaxSizeMb else item.settingsSnapshot.videoMaxSizeMb))
-    suspend fun applyBytes(item: DownloadItem, input: File, directory: File, maximum: Long): File {
+    suspend fun apply(item: DownloadItem, input: File, directory: File, finalize: suspend (File) -> File = { it }): File = applyBytes(item, input, directory,
+        SizeBudget.bytes(if (item.kind == DownloadKind.AUDIO) item.settingsSnapshot.audioMaxSizeMb else item.settingsSnapshot.videoMaxSizeMb), finalize)
+    suspend fun applyBytes(item: DownloadItem, input: File, directory: File, maximum: Long, finalize: suspend (File) -> File = { it }): File {
         require(maximum >= 0)
-        if (SizeBudget.fits(input.length(), maximum)) return input
+        val ready = finalize(input)
+        if (SizeBudget.fits(ready.length(), maximum)) return ready
         val gateway = YtDlpGateway(runtime, log)
         val duration = gateway.probe(item, input)["format"]?.jsonObject?.get("duration")?.jsonPrimitive?.doubleOrNull ?: error("Cannot read media duration for the size cap.")
         val video = item.kind == DownloadKind.VIDEO
@@ -46,10 +47,9 @@ class MediaSizeLimiter(private val runtime: NativeRuntime, private val log: Down
             try {
                 runtime.execute(item.id, runtime.ffmpeg, args + output.path)
                 runtime.check(item.id)
-                if (output.length() > 0 && SizeBudget.fits(output.length(), maximum)) {
-                    gateway.validate(item, output)
-                    return output
-                }
+                gateway.validate(item, output)
+                val finalized = finalize(output)
+                if (finalized.length() > 0 && SizeBudget.fits(finalized.length(), maximum)) return finalized
             } finally { if (!output.exists() || !SizeBudget.fits(output.length(), maximum)) output.delete() }
             output.delete()
             if (budget <= minimum) throw SizeLimitImpossible()

@@ -82,7 +82,7 @@ import kotlinx.coroutines.withContext
             modifier = Modifier.testTag("open_settings")) { Icon(Icons.Default.Settings, contentDescription = "Settings") }
     }) }, snackbarHost = { SnackbarHost(snackbar) }) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
-            Text("YouTube audio/video · Metadata/ReplayGain and size caps arrive in later milestones.", style = MaterialTheme.typography.bodySmall,
+            Text("YouTube audio/video · Formats, size caps and audio tags from Settings.", style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
             NavHost(nav, startDestination = "main", modifier = Modifier.weight(1f)) {
                 composable("main") { MainScreen(url, { model.url.value = it }, kind, { model.kind.value = it }, settings,

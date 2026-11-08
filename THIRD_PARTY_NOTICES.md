@@ -25,3 +25,5 @@ The Apache-2.0 license is included in `app/src/main/res/raw/apache_license.txt` 
 ## Milestone 2 native integration
 
 Version 0.2.0 adds `io.github.junkfood02.youtubedl-android:library:0.18.1` and `:ffmpeg:0.18.1` (GPL-3.0), with Python, QuickJS, FFmpeg and codec dependencies. See [native provenance, licenses, source/build references and tested ABI limits](docs/NATIVE_RUNTIME.md). The GPL text is bundled and shown in the app. Broader redistribution is subject to corresponding-source and combined-work licensing obligations; private personal use is the current scope.
+
+M5 adds Mutagen 1.47.0 (GPL-2.0-or-later), checksum-pinned pure Python. Its complete license is bundled as `assets/mutagen-license.txt` and displayed in Settings. Source and provenance are in [native runtime documentation](docs/NATIVE_RUNTIME.md). FFmpeg EBU R128/astats analysis is used for non-destructive ReplayGain tags.

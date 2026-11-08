@@ -93,6 +93,43 @@ class NativeIntegrationTest {
         YtDlpGateway(runtime, app.diagnostics).validate(vitem, vreduced)
         listOf(reduced, vreduced).forEach { runtime.execute(UUID.randomUUID(), runtime.ffmpeg, listOf("-v", "error", "-nostdin", "-i", it.path, "-f", "null", "-")) }
         Log.i("BBD_INTEGRATION", "CAPS verified audio=${reduced.length()} video=${vreduced.length()} strict bytes; impossible failed.")
+        Unit
+    }
+    @Test fun gMetadataAndReplayGainRoundTripWithoutChangingAudio() = runBlocking {
+        val runtime = app.runtime
+        withContext(Dispatchers.IO) { runtime.initialize() }
+        val writer = com.barebonesdownloader.android.metadata.AudioTags(runtime, app.diagnostics)
+        val processor = com.barebonesdownloader.android.metadata.MetadataProcessor(runtime, app.diagnostics)
+        val info = kotlinx.serialization.json.buildJsonObject {
+            put("track", kotlinx.serialization.json.JsonPrimitive("音楽 & Song")); put("artist", kotlinx.serialization.json.JsonPrimitive("Known Artist"))
+            put("album", kotlinx.serialization.json.JsonPrimitive("Known Album")); put("album_artist", kotlinx.serialization.json.JsonPrimitive("Album Artist"))
+            put("release_date", kotlinx.serialization.json.JsonPrimitive("20200102")); put("track_number", kotlinx.serialization.json.JsonPrimitive("7"))
+            put("disc_number", kotlinx.serialization.json.JsonPrimitive("1")); put("genre", kotlinx.serialization.json.JsonPrimitive("Rock"))
+            put("composer", kotlinx.serialization.json.JsonPrimitive("Composer")); put("webpage_url", kotlinx.serialization.json.JsonPrimitive("https://example.org/owned"))
+            put("description", kotlinx.serialization.json.JsonPrimitive("Owned fixture comment"))
+        }
+        suspend fun hash(item: DownloadItem, file: File) = runtime.execute(item.id, runtime.ffmpeg, listOf("-v","error","-nostdin","-i",file.path,"-map","0:a:0","-c:a","copy","-f","hash","-hash","sha256","-")).out.trim()
+        val sources = AudioFormat.entries.mapIndexed { index, format -> format to if (format == AudioFormat.ORIGINAL) File(app.cacheDir,"owned-pcm.wav") else File(app.cacheDir,"format-$index/converted.${com.barebonesdownloader.android.media.audioOutput(format)!!.extension}").let { if (it.exists()) it else File(app.cacheDir,"owned-pcm.wav") } }.toMutableList()
+        val webm = File(app.cacheDir,"owned-opus.webm")
+        runtime.execute(UUID.randomUUID(),runtime.ffmpeg,listOf("-v","error","-nostdin","-y","-i",File(app.cacheDir,"owned-pcm.wav").path,"-c:a","libopus",webm.path))
+        sources += AudioFormat.ORIGINAL to webm
+        sources.forEachIndexed { index, (format, source) ->
+            val item = DownloadItem(sourceUrl="owned", extractorKey="fixture", settingsSnapshot=AppSettings(audioFormat=format))
+            val before = hash(item,source)
+            val tagged = processor.apply(item,source,info,File(app.cacheDir,"metadata-$index"))
+            assertTrue("Unexpected metadata/RG warnings for $format: ${tagged.warnings}",tagged.warnings.isEmpty())
+            val tags = writer.read(item,tagged.file)
+            assertEquals("音楽 & Song",tags["title"])
+            assertTrue(tags.containsKey("replaygain_track_gain")); assertTrue(tags["replaygain_track_peak"]!!.toDouble() > 0)
+            assertFalse(tags.keys.any { it.contains("album_gain") || it.contains("album_peak") })
+            assertEquals("Tagging changed encoded samples for $format",before,hash(item,tagged.file))
+            val deselected = item.copy(id=UUID.randomUUID(),settingsSnapshot=item.settingsSnapshot.copy(metadata=MetadataSettings(emptySet()),replayGainEnabled=false))
+            val cleared = processor.apply(deselected,tagged.file,info,File(app.cacheDir,"metadata-cleared-$index"))
+            assertTrue(cleared.warnings.toString(),cleared.warnings.isEmpty())
+            assertTrue(writer.read(deselected,cleared.file).keys.none { it in com.barebonesdownloader.android.metadata.tagKeys.values || it in com.barebonesdownloader.android.metadata.gainKeys })
+            assertEquals(before,hash(deselected,cleared.file))
+            Log.i("BBD_INTEGRATION","TAGS/RG verified $format .${source.extension}: selected values, deselected removal, unchanged encoded samples.")
+        }
     }
     @Test fun bCancellationTerminatesNativeDescendant() = runBlocking {
         val runtime = app.runtime; val id = UUID.randomUUID(); val child = CompletableDeferred<Int>()

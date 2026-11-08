@@ -69,7 +69,7 @@ class DownloadCoordinator(private val repository: RoomDownloadRepository, privat
     private val progressUpdates = java.util.concurrent.ConcurrentHashMap<UUID, MediaProgress>()
     suspend fun flushProgress() {
         progressUpdates.forEach { (id, event) -> repository.change(id) {
-            val order = listOf(DownloadStatus.INSPECTING, DownloadStatus.DOWNLOADING, DownloadStatus.PROCESSING, DownloadStatus.SAVING)
+            val order = listOf(DownloadStatus.INSPECTING, DownloadStatus.DOWNLOADING, DownloadStatus.PROCESSING, DownloadStatus.TAGGING, DownloadStatus.SAVING)
             if (it.status in order && order.indexOf(it.status) <= order.indexOf(event.stage)) it.copy(status = event.stage, progressPercent = event.percent) else it
         } }
     }

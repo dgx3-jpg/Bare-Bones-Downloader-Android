@@ -33,6 +33,8 @@ class NativeRuntime(private val context: Context) {
     val ffmpeg get() = File(native, "libffmpeg.so")
     val ffprobe get() = File(native, "libffprobe.so")
     val quickJs get() = File(native, "libqjs.so")
+    val mutagen get() = File(context.noBackupFilesDir, "mutagen-1.47.0.whl")
+    val tagger get() = File(context.noBackupFilesDir, "tagger.py")
     val ytdlp get() = File(context.noBackupFilesDir, "youtubedl-android/yt-dlp/yt-dlp")
     @Synchronized fun initialize() {
         if (initialized) return
@@ -47,6 +49,8 @@ class NativeRuntime(private val context: Context) {
             } finally { replacement.delete() }
         }
         require(listOf(python, ffmpeg, ffprobe, quickJs, ytdlp).all { it.isFile && it.length() > 0 }) { "Native runtime is missing for this device ABI. Reinstall the matching APK." }
+        context.resources.openRawResource(R.raw.mutagen).use { input -> mutagen.outputStream().use(input::copyTo) }
+        context.assets.open("tagger.py").use { input -> tagger.outputStream().use(input::copyTo) }
         initialized = true
     }
     fun reset(id: UUID) { cancelled.remove(id) }
@@ -64,6 +68,7 @@ class NativeRuntime(private val context: Context) {
         val builder = ProcessBuilder(listOf(python.absolutePath, "-c", launcher, executable.absolutePath) + args)
         builder.environment().apply {
             put("LD_LIBRARY_PATH", "${File(packages, "python/usr/lib")}:${File(packages, "ffmpeg/usr/lib")}")
+            put("PYTHONPATH", mutagen.absolutePath)
             put("PYTHONHOME", File(packages, "python/usr").absolutePath)
             put("SSL_CERT_FILE", File(packages, "python/usr/etc/tls/cert.pem").absolutePath)
             put("TMPDIR", context.cacheDir.absolutePath)
