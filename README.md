@@ -10,7 +10,7 @@ A permanent replacement signing identity is now established and privately backed
 
 ## Download / install
 
-[GitHub Actions](https://github.com/dgx3-jpg/Bare-Bones-Downloader-Android/actions/workflows/android.yml) publishes `app-debug-apk` and verification reports. Download the artifact ZIP, extract `app-debug.apk`, and install it. Allow installation from your browser/file manager when Android requests it. The universal APK contains four ABIs and is about 225 MB. No Windows tools or FFmpegKit are used.
+Signed release runs of [GitHub Actions](https://github.com/dgx3-jpg/Bare-Bones-Downloader-Android/actions/workflows/android.yml) publish `app-debug-apk`; ordinary verification runs publish reports only. The signed 0.6.1 APK is currently delivered directly in the owner’s chat because the connected GitHub release upload returned HTTP 400. When a signed APK artifact is available, download its ZIP, extract `app-debug.apk`, and install it. Allow installation from your browser/file manager when Android requests it. The universal APK contains four ABIs and is about 225 MB. No Windows tools or FFmpegKit are used.
 
 Use APKs with the same signing certificate for in-place updates. Uninstalling clears app data and folder grants. CI checks the permanent public certificate and refuses incompatible signed release assets; [signing continuity](docs/RELEASE_CHECKLIST.md) explains the private backup requirement and cache limitations.
 
