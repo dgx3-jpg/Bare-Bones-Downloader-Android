@@ -1,0 +1,66 @@
+name: Publish offline-signed APK
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v0.6.1
+          path: source
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: delivery/apk-0.6.1
+          path: transfer
+          persist-credentials: false
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: 'build-tools;35.0.0'
+          log-accepted-android-sdk-licenses: false
+      - name: Reassemble and verify the existing signed APK
+        run: |
+          mkdir delivered
+          cat transfer/apk.part-* > delivered/app-debug.apk
+          cp transfer/release-manifest.json delivered/
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,re,subprocess
+          root=pathlib.Path('delivered'); apk=root/'app-debug.apk'
+          manifest=json.loads((root/'release-manifest.json').read_text())
+          head=subprocess.check_output(['git','-C','source','rev-parse','HEAD'],text=True).strip()
+          expected=pathlib.Path('source/tools/signing-certificate.sha256').read_text().strip()
+          assert manifest['source_commit']==head, 'Source commit mismatch'
+          assert hashlib.sha256(apk.read_bytes()).hexdigest()==manifest['sha256']['app-debug.apk'], 'APK hash mismatch'
+          sdk=pathlib.Path(os.environ['ANDROID_HOME'])/'build-tools'/'35.0.0'
+          certs=subprocess.check_output([str(sdk/'apksigner'),'verify','--print-certs',str(apk)],text=True)
+          assert re.findall(r'certificate SHA-256 digest: ([0-9a-f]+)',certs)==[expected], 'Signer mismatch'
+          badging=subprocess.check_output([str(sdk/'aapt'),'dump','badging',str(apk)],text=True)
+          assert "package: name='com.barebonesdownloader.android' versionCode='9'" in badging, 'Package/version mismatch'
+          tree=subprocess.check_output([str(sdk/'aapt'),'dump','xmltree',str(apk),'AndroidManifest.xml'],text=True)
+          match=re.search(r'android:name[^\n]*"com\.barebonesdownloader\.android\.BUILD_COMMIT"[^\n]*\n\s*A: android:value[^\n]*"([0-9a-f]{40})"',tree)
+          assert match and match.group(1)==head, 'Embedded source mismatch'
+          print('Verified signed APK:', manifest['sha256']['app-debug.apk'], 'certificate:', expected)
+          PY
+      - name: Publish verified APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-apk
+          path: delivered/
+          if-no-files-found: error
+      - name: Publish private repository release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload v0.6.1 delivered/app-debug.apk delivered/release-manifest.json --repo "$GITHUB_REPOSITORY" --clobber
+          cat > delivered/notes.txt <<'EOF'
+          Permanent-key signed Android 0.6.1 APK, built from d048cda5222e36dbd3ec71b6ef5726387ff4490f. Hash, signing certificate, package/version and embedded source commit verified before publication.
+
+          Older differently signed APKs require one clean install, which resets app settings/history and folder grants. Keep the permanent private signing backup separately; no private key is included here.
+
+          Verification: 36 host tests, lint, nine Android native feature methods and two same-key upgrade seed/verify checks passed in run 42521231927. That update fixture used temporary same-certificate APKs; the permanent-key APK still needs phone verification. Two opt-in live-site checks were skipped. Recorded YouTube/TikTok site restrictions remain unresolved.
+          EOF
+          gh release edit v0.6.1 --repo "$GITHUB_REPOSITORY" --prerelease=false --notes-file delivered/notes.txt
