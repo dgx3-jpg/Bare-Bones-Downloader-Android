@@ -69,13 +69,20 @@ class NativeIntegrationTest {
             device.findObject(By.desc("Show roots"))?.click()
             device.wait(Until.findObject(By.text("Internal storage")), 5_000)?.click()
         }
-        device.wait(Until.findObject(By.text("Download")), 3_000)?.click()
-        device.wait(Until.findObject(By.text("BBDM2Tests")), 3_000)?.click()
+        device.wait(Until.findObject(By.text(java.util.regex.Pattern.compile("(?i)downloads?"))), 3_000)?.click()
+        val directory = device.wait(Until.findObject(By.text("BBDM2Tests")), 5_000)
+        if (directory == null) {
+            val dump = File(app.cacheDir, "picker.xml"); device.dumpWindowHierarchy(dump)
+            dump.readText().chunked(3000).forEach { Log.i("BBD_INTEGRATION", it) }
+        }
+        assertNotNull("The owned test directory was not visible in DocumentsUI", directory)
+        directory.click()
         val use = device.wait(Until.findObject(useFolder), 10_000)
         assertNotNull("DocumentsUI did not expose a folder confirmation. ${device.currentPackageName}", use)
         use.click()
-        device.wait(Until.findObject(By.text("ALLOW")), 1_000)?.click()
+        device.wait(Until.findObject(By.text(java.util.regex.Pattern.compile("(?i)allow"))), 2_000)?.click()
         device.waitForIdle()
+        ui.waitUntil(10_000) { ui.onAllNodesWithText("BBDM2Tests").fetchSemanticsNodes().isNotEmpty() }
         ui.onNodeWithTag("save_settings").performClick()
         val selected = withTimeout(10_000) { app.settings.settings.first { it.audioFolderUri != null } }
         val prefs = selected.copy(videoFolderUri = selected.audioFolderUri, videoFolderName = selected.audioFolderName)
@@ -95,5 +102,5 @@ class NativeIntegrationTest {
             Log.i("BBD_INTEGRATION", "Saved and probed ${item.kind}: ${file.length()} bytes")
         }
     }
-    private object Patterns { val useFolder: java.util.regex.Pattern = java.util.regex.Pattern.compile("(?i)use this folder") }
+    private object Patterns { val useFolder: java.util.regex.Pattern = java.util.regex.Pattern.compile("(?i)(use this folder|allow access to.*|select)") }
 }
