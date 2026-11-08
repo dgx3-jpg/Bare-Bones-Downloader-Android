@@ -1,7 +1,8 @@
 # Implementation status
 
-Requested scope now includes **all milestones 1–6** of design v2. M1–3 were implemented previously; M4–6 code is now implemented in candidate **0.6.0 / code 8**. M4/M5 native verification passed; final M6 native verification is in progress. This is not a full live-site/device parity claim.
+Requested scope includes **all milestones 1–6** of design v2. **M4 and M5 are complete and verified. M6 code and independent Android checks are verified; its final APK publication and in-place update check are blocked by the missing prior CI signing key.** Candidate **0.6.0 / code 8**, package `com.barebonesdownloader.android`. The owner signing decision remains pending; no new permanent identity has been approved or published. This is not a full live-site/physical-device parity claim.
 
+**Final independent verification:** [green run 42512639926](https://github.com/dgx3-jpg/Bare-Bones-Downloader-Android/actions/runs/42512639926), source `67aabbf9536d87a6d4b51c5ff89e41f6da5efb2a`: **36 host tests passed, lint and APK/instrumentation assembly passed; 9 actual Android methods passed, 2 live checks explicitly skipped, 0 failures/errors.** [Native XML/logs/screenshots](https://github.com/dgx3-jpg/Bare-Bones-Downloader-Android/actions/runs/42512639926/artifacts/13630356702), [host reports](https://github.com/dgx3-jpg/Bare-Bones-Downloader-Android/actions/runs/42512639926/artifacts/13629329058). The verification key was isolated; no M6 APK was published from this run.
 ## Current implementation
 
 | Milestone | Implemented behavior | Actual evidence / limits |
@@ -11,7 +12,7 @@ Requested scope now includes **all milestones 1–6** of design v2. M1–3 were 
 | M3 | Nine formats, copy/explicit quality/bitrate, seven video height ceilings, filename rules and actual codec checks | Android 10/x86_64 decoded 22 real default/variable/bitrate outputs plus compatible-copy/re-encode assertions. |
 | M4 | Strict decimal-MB caps, seven bounded reductions, selected-lossy/AAC fallback, final tag overhead, publication hash checks | Actual cap tests passed in run 42504090820: audio 256807 bytes, video 923568 bytes, each strictly below 1000000; under-cap unchanged and impossible cap failed. Finalized tags/gain reapply after each size attempt. |
 | M5 | All eleven fields, source/Topic/existing/confident-Apple missing-only resolution, selected removal and read-back; per-track ReplayGain | Unit confidence/precedence/reference tests passed. Initial Android WAV/AAC/ALAC tag/RG round-trips and unchanged encoded hashes passed; FLAC exposed a Vorbis comment iteration bug, fixed in b105d70. Corrected Android rerun 42505013422 passed all nine format and WebM tag/removal/RG round-trips, with unchanged encoded hashes. |
-| M6 | Other public single-item sources with namespace IDs, share prefill, persistent diagnostics, reservation rebuild, SAF recovery journal, cancellation race protection, signing guard and update test | Local 35 JVM/Robolectric tests, APK/instrumentation compilation and lint passed. Owned HTTP screen-off FIFO, share/journal, scaled theme screenshots, actual old/new APK update and opt-in TikTok checks added; final Android execution pending. |
+| M6 | Other public single-item sources with namespace IDs, share prefill, persistent diagnostics, reservation rebuild, SAF recovery journal, cancellation race protection, signing guard and update test | 36 host tests/lint/assembly and 9 independent Android checks passed. Actual owned HTTP screen-off FIFO, share admission/prefill without enqueue, publication-journal cleanup/protected bytes and scaled light/dark screenshots verified. Actual old/new APK update remains blocked/skipped because the prior private signing key is unavailable. TikTok live probe was IP-restricted. |
 
 Public sources are inspected for a single accessible non-live/non-DRM item; collections/auth/private content fail explicitly. YouTube keeps its stricter URL rules. Generic MP4 with unknown codec labels must pass actual H.264/AAC/height checks before cap conversion. Uploaders are not automatically music artists. Metadata/ReplayGain failures warn and keep readable audio. Silent/too-short audio can have no valid gain. No cookie/login/bypass, live recording, player, analytics or server is added.
 
@@ -26,7 +27,7 @@ Local toolchain: OpenJDK21.0.13, SDK36, Build Tools35.0.0, Gradle8.13, AGP8.13.2
 
 ## Known acceptance / release limits
 
-- Live YouTube is blocked by site verification in CI. TikTok/public-site results and final M6 evidence will be recorded below. No full website success guarantee.
+- Live YouTube is blocked by site verification in CI. TikTok was actually probed and rejected the runner IP; final independent M6 evidence is recorded above/below. No full website success guarantee.
 - Live Apple catalogue success is not independently verified; selection/confidence logic and actual known-tag round-trips are tested. Missing/ambiguous fields stay unknown.
 - No physical phone, ARM runtime, 16 KB page-size device or OEM battery-policy verification is claimed. Native evidence is Android 10/API29 x86_64. Accessibility beyond recorded scaled-theme checks remains manual.
 - SAF has no universal atomic/exclusive publication. Handled failures remove new documents; the journal supports process-death cleanup. Lost grants/delete refusal and the small provider-create/journal-commit transaction gap can require manual folder cleanup.
@@ -58,8 +59,33 @@ Run [42507714105](https://github.com/dgx3-jpg/Bare-Bones-Downloader-Android/acti
 
 The journal no longer equates `DocumentFile.exists()==false` with successful removal: that helper can hide permission/provider failures. It directly requests deletion of the recorded owned URI, retains the marker on failure and preserves already-completed publications. A real-file JVM test checks uncommitted versus completed records and denied-delete retention; **36 host tests pass**. Native revalidation remains pending.
 
-The test script now runs real `am instrument` directly, records its actual per-method status callbacks into JUnit XML, rejects incomplete/zero-test reports and bounds transport cleanup. Its parser was checked against the actual failed instrumentation transcript and reported exactly one failure/two skips. This avoids UTP's hung post-test collector; it does not replace Android execution with mock results. Theme captures use UiDevice and app-private test files. The direct driver retains the test installation for export; host PNG signatures are checked so a run-as error cannot be mistaken for an image. Final XML/images remain to be checked.
+The test script now runs real `am instrument` directly, records its actual per-method status callbacks into JUnit XML, rejects incomplete/zero-test reports and bounds transport cleanup. Its parser was checked against the actual failed instrumentation transcript and reported exactly one failure/two skips. This avoids UTP's hung post-test collector; it does not replace Android execution with mock results. Theme captures use UiDevice and app-private test files. The direct driver retains the test installation for export; host PNG signatures are checked so a run-as error cannot be mistaken for an image. The final XML and valid PNGs were checked in run 42512639926.
 
 Run [42511387482](https://github.com/dgx3-jpg/Bare-Bones-Downloader-Android/actions/runs/42511387482), source ca45e82, completed with the direct driver: build/36 host tests/lint passed; native 11 methods, one assertion failure, two live skips. The remaining failure used `DocumentFile.exists()` on an Android-10 Downloads `raw:` URI after successful deletion. Provider diagnostics showed the deletion completed, while that convenience document query continued returning a row. The recovery assertion now checks the actual parent listing and inability to read the removed file, and reads back the protected completed document's exact bytes.
 
 All other native checks passed. Two valid light/dark PNGs at 1.3 font scale were exported and visually inspected: titles wrap within the app bar, labels/inputs/buttons remain readable and the page scrolls. Added spacing between radio icons and labels. Source-aware music parsing also uses the strict YouTube host boundary, preventing a lookalike suffix such as `notyoutube.com` from receiving Topic-specific rules. These final corrections are locally built and tested; final Android rerun follows.
+
+## Final M6 independent acceptance evidence
+
+Run **42512639926** used Android 10/API29, x86_64, actual yt-dlp **2026.10.26** and FFmpeg/ffprobe **7.1.1**. Direct instrumentation report: **11 methods = 9 passed + 2 explicitly skipped live checks**, zero failures/errors.
+
+Passed native checks:
+
+- H.264/AAC fixture, actual binary versions and descendant cancellation.
+- Real DocumentsUI grant, SAF verified copy, collisions and cancelled-copy cleanup.
+- Nine audio formats / supported quality-bitrate modes; default-compatible copy versus explicit encode; actual codecs, containers and decode checks; real video-height ceiling.
+- Strict audio/video caps, under-cap no re-encode, impossible cap failure. Final tag overhead case: **229388 < 300000 bytes**, full 200000-character comment retained and gain independently remeasured from final AAC.
+- Selected fields and deselected removal across all nine choices plus WebM; actual per-track gain/peak tags and unchanged encoded audio hashes.
+- Share MIME resolution and onNewIntent delivery prefill input without enqueue. Recovery verifies the incomplete document is absent from its parent/unreadable, while the completed document's exact bytes survive. No unreliable raw-URI exists query is used as deletion evidence.
+- Actual generic HTTP extraction of owned generated media, Audio A / Video A / Video B through the production FIFO/foreground service/processing/SAF while the emulator screen is off. Local URL admission is bypassed only by explicit test seeding; production still rejects localhost URLs.
+- Light/dark at 1.3 font scale. Both valid exported PNGs were visually inspected; labels, fields and buttons remain readable, title wrapping stays within the app bar and scrolling works.
+
+The two skipped tests are not download successes: YouTube was previously blocked by sign-in verification (run 42501942123); the real TikTok probe was rejected with **“Your IP address is blocked from accessing this post”** (run 42506521028). Neither was bypassed.
+
+## Final release blocker / required owner input
+
+A normal release-mode recheck, [run 42513349402](https://github.com/dgx3-jpg/Bare-Bones-Downloader-Android/actions/runs/42513349402), failed only at the signing guard: **“Established debug key is unavailable.”** No existing-key secret or v2 cache was available. My earlier cache path did not match the build's actual keystore path, so the old key was not retained; this was an implementation mistake. The explicit path is now corrected, but an APK's public certificate cannot recover its private key.
+
+To finish APK delivery/update verification, the owner must either restore the matching private backup through Actions secret `BBD_DEBUG_KEYSTORE_BASE64`, or explicitly accept a new permanent identity and a clean install (settings/history reset). Do not send private keys in chat. The connected integration cannot administer repository secrets (HTTP403); restoration is through repository Settings → Secrets and variables → Actions. No new permanent key, incompatible-update APK, or destructive reinstall has been performed.
+
+The independent software work is complete. The final M6 APK, durable identity decision and actual in-place update acceptance remain blocked on that input. Physical-device/ARM/16KB/OEM/live-catalogue checks remain the documented release limitations.

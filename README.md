@@ -8,6 +8,8 @@ Audio and video downloads use a single persistent FIFO queue, independent SAF de
 
 **Final APK release blocker:** my earlier CI signing-cache configuration pointed at a path the build did not use, so the old private key was not retained. The final workflow currently runs in verification-only mode and publishes no APK. Publishing an update requires the existing key restored from a private backup, or explicit acceptance of a new stable identity and a clean install. See [signing evidence and the pending decision](IMPLEMENTATION_STATUS.md).
 
+[Final independent verification](https://github.com/dgx3-jpg/Bare-Bones-Downloader-Android/actions/runs/42512639926): 36 host tests and 9 actual Android methods passed; 2 live-site checks were explicitly skipped. Scaled light/dark images were inspected. In-place update verification remains blocked by the missing key.
+
 ## Download / install
 
 [GitHub Actions](https://github.com/dgx3-jpg/Bare-Bones-Downloader-Android/actions/workflows/android.yml) publishes `app-debug-apk` and verification reports. Download the artifact ZIP, extract `app-debug.apk`, and install it. Allow installation from your browser/file manager when Android requests it. The universal APK contains four ABIs and is about 225 MB. No Windows tools or FFmpegKit are used.
