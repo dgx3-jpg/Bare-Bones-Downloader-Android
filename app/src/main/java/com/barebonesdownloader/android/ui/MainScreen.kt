@@ -29,7 +29,7 @@ import com.barebonesdownloader.android.domain.model.*
         DownloadKind.entries.forEach { option ->
             Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("mode_${option.name}")
                 .selectable(selected = kind == option, role = Role.RadioButton, onClick = { selectKind(option) }), verticalAlignment = Alignment.CenterVertically) {
-                RadioButton(selected = kind == option, onClick = null); Text(option.label)
+                RadioButton(selected = kind == option, onClick = null); Spacer(Modifier.width(12.dp)); Text(option.label)
             }
         }
         Text(if (kind == DownloadKind.AUDIO) "Audio format and size from Settings." else "MP4 with sound · Video quality and size from Settings.")

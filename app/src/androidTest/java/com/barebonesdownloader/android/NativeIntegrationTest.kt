@@ -164,10 +164,15 @@ class NativeIntegrationTest {
         val journal = PublicationJournal(app)
         val interruptedId = UUID.randomUUID()
         val interrupted = tree.createFile("application/octet-stream","owned-interrupted-$interruptedId.bin")!!
+        val interruptedName=interrupted.name!!
+        app.contentResolver.openOutputStream(interrupted.uri)!!.use { it.write(byteArrayOf(4,5)) }
         journal.record(interruptedId,interrupted.uri.toString())
         val completedId = UUID.randomUUID()
         val completed = tree.createFile("application/octet-stream","owned-completed-$completedId.bin")!!
         app.database.downloads().insert(DownloadItem(id=completedId,sourceUrl="owned",status=DownloadStatus.COMPLETED,outputUri=completed.uri.toString()))
+        val completedName=completed.name!!
+        val completedBytes=byteArrayOf(1,2,3)
+        app.contentResolver.openOutputStream(completed.uri)!!.use { it.write(completedBytes) }
         journal.record(completedId,completed.uri.toString())
         val records=File(app.noBackupFilesDir,"pending-publications")
         Log.i("BBD_INTEGRATION","JOURNAL records: ${records.listFiles().orEmpty().joinToString { it.name }}")
@@ -175,7 +180,13 @@ class NativeIntegrationTest {
         Log.i("BBD_INTEGRATION","JOURNAL before: tree=${interrupted.exists()} single=${DocumentFile.fromSingleUri(app,interrupted.uri)?.exists()} uri=${interrupted.uri}")
         journal.recover(app.downloads,app.diagnostics)
         app.diagnostics.text.value.lineSequence().filter { it.contains("publication") || it.contains("Recovery warning") }.take(10).forEach { Log.i("BBD_INTEGRATION",it) }
-        assertFalse(app.diagnostics.text.value,interrupted.exists()); assertTrue(completed.exists())
+        // Downloads' raw-document query can return a row even after unlink. Check
+        // the actual parent listing and streams, not DocumentFile.exists().
+        assertNull(app.diagnostics.text.value,tree.findFile(interruptedName))
+        assertNotNull(tree.findFile(completedName))
+        assertTrue(runCatching { app.contentResolver.openInputStream(interrupted.uri)!!.use { it.read() } }.isFailure)
+        assertArrayEquals(completedBytes,app.contentResolver.openInputStream(completed.uri)!!.use { it.readBytes() })
+        Log.i("BBD_INTEGRATION","JOURNAL verified: incomplete child absent/unreadable; completed child bytes preserved.")
         completed.delete()
     }
     @Test fun iOwnedHttpFixtureCompletesBothModesWhileScreenOff() = runBlocking<Unit> {

@@ -59,7 +59,7 @@ class MetadataProcessor(private val runtime: NativeRuntime, private val log: Dow
         var selected: Map<String,String> = emptyMap()
         try {
             val actual = writer.read(item, input)
-            val resolved = mergeMissing(sourceTags(info, item.extractorKey == "youtube" || item.sourceHost?.endsWith("youtube.com") == true), actual.filterKeys { it in tagKeys.values })
+            val resolved = mergeMissing(sourceTags(info, item.extractorKey.equals("youtube",true) || SourceUrls.isYoutube(item.sourceHost.orEmpty().lowercase())), actual.filterKeys { it in tagKeys.values })
             if (item.settingsSnapshot.metadata.enabled.isNotEmpty()) {
                 if (listOf("title","artist","album").any { resolved[it].isNullOrBlank() }) {
                     val duration = YtDlpGateway(runtime, log).probe(item, input)["format"]?.jsonObject?.get("duration")?.jsonPrimitive?.doubleOrNull

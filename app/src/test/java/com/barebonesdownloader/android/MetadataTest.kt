@@ -15,6 +15,8 @@ class MetadataTest {
     @Test fun ordinaryCreatorIsNotSongArtistAndCatalogueRequiresReliableEvidence() {
         val tags = sourceTags(buildJsonObject { put("title","Funny clip"); put("uploader","Creator"); put("description","A funny song") },false)
         assertNull(tags["artist"]); assertNull(tags["title"]); assertNull(tags["album"])
+        assertFalse(com.barebonesdownloader.android.download.SourceUrls.isYoutube("notyoutube.com"))
+        assertTrue(com.barebonesdownloader.android.download.SourceUrls.isYoutube("www.youtube.com"))
         assertTrue(selectCatalogue(emptyList(), "Title", "", 100.0).isEmpty())
     }
     @Test fun ambiguousAlbumsStayUnknownAndKnownFieldsArePreserved() {
