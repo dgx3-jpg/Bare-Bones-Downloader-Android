@@ -12,7 +12,10 @@ else
   cp app/build/outputs/apk/debug/app-debug.apk baseline-apk/app-debug.apk
   ./gradlew --no-daemon assembleDebug assembleDebugAndroidTest -PbbdSourceCommit="$commit" || exit $?
 fi
-python3 tools/check-update.py || exit $?
+python3 tools/check-update.py > update-check.log 2>&1
+update_result=$?
+cat update-check.log
+if [[ $update_result -ne 0 ]]; then exit "$update_result"; fi
 python3 tools/native-test-driver.py "${1:-false}" "${2:-false}"
 result=$?
 for theme in light dark; do

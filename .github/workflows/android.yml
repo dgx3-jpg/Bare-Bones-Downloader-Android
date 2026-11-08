@@ -139,6 +139,7 @@ jobs:
           name: native-integration-reports
           path: |
             app/build/outputs/native-test-results/
+            update-check.log
             native-runner.log
             native-logcat.txt
             theme-*-scaled.png

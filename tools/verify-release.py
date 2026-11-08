@@ -20,7 +20,7 @@ for name in ['app-debug.apk','baseline-app.apk','app-debug-androidTest.apk']:
     found=re.findall(r'certificate SHA-256 digest: ([0-9a-f]+)',certs)
     if found!=[expected]: sys.exit('Release signer mismatch: '+name)
     badging=subprocess.check_output([str(tools/'aapt'),'dump','badging',str(file)],text=True)
-    package=re.search(r"package: name='([^']+)' versionCode='([0-9]+)'",badging)
+    package=re.search(r"package: name='([^']+)' versionCode='([0-9]*)'",badging)
     app_id='com.barebonesdownloader.android'
     if not package or package.group(1)!=(app_id+'.test' if name=='app-debug-androidTest.apk' else app_id): sys.exit('Unexpected APK package: '+name)
     if name!='app-debug-androidTest.apk':
