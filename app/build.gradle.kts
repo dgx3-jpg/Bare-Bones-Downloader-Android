@@ -65,6 +65,7 @@ dependencies {
 tasks.withType<Test>().configureEach {
     val testHome = layout.buildDirectory.dir("test-home").get().asFile
     systemProperty("user.home", testHome.absolutePath)
+    systemProperty("robolectric.dependency.repo.url", "https://repo.maven.apache.org/maven2")
     maxHeapSize = "1536m"
     doFirst { testHome.mkdirs() }
 }

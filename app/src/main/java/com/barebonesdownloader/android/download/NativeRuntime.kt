@@ -43,7 +43,7 @@ class NativeRuntime(private val context: Context) {
     }
     suspend fun execute(id: UUID, executable: File, args: List<String>, onLine: (String) -> Unit = {}): Result = withContext(Dispatchers.IO) {
         initialize(); check(id)
-        val launcher = "import os,sys; os.setsid(); print('BBD_PID='+str(os.getpid()),flush=True); os.execv(sys.argv[1],sys.argv[1:])"
+        val launcher = "import os,sys; os.setsid(); print('BBD_PID='+str(os.getpid()),flush=True); assert sys.stdin.buffer.read(1)==b'1'; os.execv(sys.argv[1],sys.argv[1:])"
         val builder = ProcessBuilder(listOf(python.absolutePath, "-c", launcher, executable.absolutePath) + args)
         builder.environment().apply {
             put("LD_LIBRARY_PATH", "${File(packages, "python/usr/lib")}:${File(packages, "ffmpeg/usr/lib")}")
@@ -58,16 +58,23 @@ class NativeRuntime(private val context: Context) {
             if (buffer.length < limit) buffer.append(line.take(limit - buffer.length)).append('\n')
         }
         val stdout = Thread {
-            process.inputStream.bufferedReader().use { reader ->
+            runCatching { process.inputStream.bufferedReader().use { reader ->
                 val header = reader.readLine().orEmpty()
                 if (header.startsWith("BBD_PID=")) {
                     slot.group = header.substringAfter('=').toIntOrNull()?.takeIf { it > 0 } ?: 0
-                    if (id in cancelled) kill(slot)
-                } else append(err, "Native launcher did not establish a process group: $header", 65_536)
-                reader.lineSequence().forEach { append(out, it, 4_000_000); onLine(it) }
-            }
+                    if (id in cancelled || slot.group <= 0) kill(slot)
+                    else process.outputStream.use { it.write(49); it.flush() }
+                } else {
+                    append(err, "Native launcher did not establish a process group: $header", 65_536)
+                    kill(slot)
+                }
+                reader.lineSequence().forEach { line ->
+                    append(out, line, 4_000_000)
+                    runCatching { onLine(line) }.onFailure { append(err, "Progress callback failed: ${it.javaClass.simpleName}", 65_536) }
+                }
+            } }.onFailure { append(err, "Output stream closed: ${it.javaClass.simpleName}", 65_536) }
         }.apply { name = "download-stdout"; start() }
-        val stderr = Thread { process.errorStream.bufferedReader().use { reader -> reader.lineSequence().forEach { append(err, it, 65_536) } } }
+        val stderr = Thread { runCatching { process.errorStream.bufferedReader().use { reader -> reader.lineSequence().forEach { append(err, it, 65_536) } } } }
             .apply { name = "download-stderr"; start() }
         val deadline = System.nanoTime() + TimeUnit.HOURS.toNanos(2)
         try {
