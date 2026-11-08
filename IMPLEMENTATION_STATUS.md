@@ -1,22 +1,20 @@
-# Implementation status — design v2
+# Implementation status
 
-Scope: updated **milestone 1 only**, 2026-11-08. The earlier audio-only shell has been revised to match the uploaded v2 design. Milestones 2–6 have not been started.
+Requested scope: milestones 2 and 3 of design v2. Milestone 1 is complete. **Milestone 2 code is implemented, but its live YouTube acceptance gate is blocked. Milestone 3 has not started; an explicit gate override/device verification is pending.** No full parity or successful live download is claimed.
 
-## Changes and working shell features
+## Milestone 2 implementation
 
-- Main utility screen replaces four bottom-navigation tabs: Audio/Video mode switch, per-type destination, multiline input, Queue audio/Queue video, Cancel current, Clear waiting, URL/Type/Status placeholder cards and collapsible/copyable diagnostics capped at 60,000 characters. Switching mode preserves input and queued data; fresh ViewModel launches default to Audio.
-- General, Audio, Video, Metadata, Appearance settings with isolated draft, Save and Cancel/back. Real DataStore persistence, normalization/corruption fallback, two SAF folder preferences, human-readable names, persistable grants and changed-folder write/create checks. Native picker/provider behavior is not device-tested.
-- Nine audio format preferences, format-dependent quality controls, quality 0–10 / bitrate 32–512, independent size caps and seven video height choices. No encoder claim.
-- All 11 metadata selections default ON; static Here Comes the Sun / The Beatles / Abbey Road preview; format-specific Unavailable labels. ReplayGain preference defaults ON and is explicitly not implemented.
-- Explicit persisted Light/Dark, desktop palette and SVG-derived Penrose adaptive icon. Android 10+; package `com.barebonesdownloader.android`, display name Bare Bones Downloader, version 0.1.1/code 2.
-- Room schema includes kind, destination and complete immutable settings snapshots; database round-trip verified. Demo UI stays in-memory, not a persistent or functional download queue.
-- GitHub Actions workflow tests/builds debug APK and uploads `app-debug-apk` plus reports. See README for artifact download and signing caveats.
+- Strict canonical YouTube watch/Shorts/youtu.be parsing, single-item/live/collection validation, per-source+kind duplicate reservations and complete enqueue snapshots.
+- Room-backed FIFO/history and monotonic order; one foreground worker; notification/cancel; bounded partial wake lock; interrupted recovery, explicit Resume/Retry, failure continuation and reservation release.
+- Separate SAF folders, per-type first selection, revoked-folder pause, explicit replacement of matching waiting jobs only.
+- Pinned youtubedl-android 0.18.1 Python/QuickJS/yt-dlp, FFmpeg and ffprobe. Structured subprocess arguments, per-command session/handshake, group cancellation, bounded output/deadlines, coroutine cancellation and output draining.
+- Best-source audio with stream-copy demux where needed; compatible real H.264/AAC MP4 selection and ffprobe checks; private staging; Unicode-safe title names/optional URL suffix; verified SAF copy; collisions skipped; incomplete destination deletion on failure.
+- Source errors surface clearly. Authentication is explicitly unsupported; no cookie import, client impersonation or bypass is added.
+- Audio encoding/resolution settings are explicitly blocked until M3. Type-specific size caps are blocked until M4. Metadata/ReplayGain remain M5 warnings; existing tags may remain. No fake repository is wired into the production app.
 
-## Verification
+## Actual local verification
 
-Local toolchain: OpenJDK 21.0.13, SDK 36, Build Tools 35.0.0; pinned Gradle 8.13 / AGP 8.13.2 / Kotlin 2.2.21.
-
-Exact final local command from the repository root:
+OpenJDK 21.0.13, SDK 36, Build Tools 35.0.0, Gradle 8.13, AGP 8.13.2, Kotlin 2.2.21.
 
 ```sh
 JAVA_HOME=/workspace/work/jdk21 \
@@ -27,45 +25,21 @@ GRADLE_OPTS='-Dhttps.proxyHost=proxy -Dhttps.proxyPort=8080 -Dhttp.proxyHost=pro
   testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest
 ```
 
-The local init script only forwards proxy properties and sets test heap size to 1536 MB. Test JVM caches/locks use `app/build/test-home`. Ordinary local commands are in README.
+**Final local command: BUILD SUCCESSFUL, 47 seconds, all 20 JVM/Robolectric tests passed.** Coverage: settings/defaults/persistence, strict parsing and spoof/collection/live rejection, names/Unicode, format preference availability, input/mode/draft behavior, Room snapshots and duplicate reservations, FIFO/failure/folder recovery, non-destructive schema 1→2 history migration, and safe error classification. Scheduling tests use explicit fakes, not native output. Lint passed with no errors; warnings remain. App and instrumentation APKs compiled. Reports are under `app/build/reports/` and `app/build/test-results/`.
 
-**BUILD SUCCESSFUL in 1m 3s. All 12 tests passed:**
+## Actual Android emulator / live evidence
 
-| Coverage | Actual result |
-| --- | --- |
-| V2 defaults, corruption/normalization, supported quality modes, preview compatibility, shell HTTP validation, full per-type settings snapshots | 6 JUnit tests passed |
-| Save/Cancel isolation, mixed-input retention, mode-specific destination gate, log bound | 1 ViewModel test passed |
-| All v2 settings survive closing/reopening real on-disk DataStore | 1 test passed |
-| Room schema/entity/type/destination/complete settings round-trip | 1 Robolectric API 35 test passed |
-| Mode/input/picker-prompt cancellation, five settings sections, Save/Cancel/theme persistence, metadata preview toggles | 3 Robolectric API 35 UI tests passed |
-| `assembleDebug` | Passed: `app/build/outputs/apk/debug/app-debug.apk` |
-| APK identity/signature | `aapt dump badging app/build/outputs/apk/debug/app-debug.apk` verified ID/label/version/minSdk 29/target 36; `apksigner verify --verbose` passed with APK Signature Scheme v2 |
-| `assembleDebugAndroidTest` | Passed: instrumentation smoke test compiled; not executed on device |
-| `lintDebug` | Passed: 0 errors, 20 warnings (mostly dependency updates; also KAPT, backup rules, icon/resource recommendations and a KTX suggestion). |
+GitHub-hosted Android 10 / API 29, x86_64:
 
-The first revised shell build also passed. One test initially targeted an off-screen Appearance tab without scrolling; the test was corrected and the full suite passed. No assertion was removed. Local reports: `app/build/test-results/testDebugUnitTest/`, `app/build/reports/tests/testDebugUnitTest/`, `app/build/reports/lint-results-debug.html`.
+- [Run 42480384765](https://github.com/dgx3-jpg/Bare-Bones-Downloader-Android/actions/runs/42480384765): real native FFmpeg/ffprobe **7.1.1**, bundled yt-dlp **2025.11.12** executed; owned H.264/AAC fixture validated; process-group descendant cancellation passed. Initial live test stopped at an Android-10 DocumentsUI label mismatch, corrected in test code.
+- [Run 42481332660](https://github.com/dgx3-jpg/Bare-Bones-Downloader-Android/actions/runs/42481332660): CI build/JVM tests passed. Real DocumentsUI grant succeeded; the old yt-dlp fixture `BaW_jenozKc` returned “This video is unavailable”. No live saving success.
+- [Run 42482139097](https://github.com/dgx3-jpg/Bare-Bones-Downloader-Android/actions/runs/42482139097): CI build/JVM tests passed; owned native media/cancellation passed again. The attributed CC Blender fixture `aqz-KE-bpKQ` failed with **“Sign in to confirm you're not a bot”**. Both requested jobs failed instead of falsely completing. No authentication bypass was attempted.
+- Independent real SAF fixture/collision/cancellation tests have now been added and compiled; the updated emulator run is pending. The known-blocked live case is explicitly opt-in and will be reported separately, not counted as passing when skipped.
 
-**GitHub Actions verified:** [run 42476569402, attempt 2](https://github.com/dgx3-jpg/Bare-Bones-Downloader-Android/actions/runs/42476569402/attempts/2) completed successfully for code/workflow commit `fc584718f5c729ca6c8e018be9132e7b660bc813`. Hosted Ubuntu runner, Temurin JDK 17.0.21; `./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug` → **BUILD SUCCESSFUL in 4m 36s**.
+No physical phone testing was performed. Local emulator installation/startup was attempted; absent KVM and the workspace disk budget prevented startup, so unused images were removed and GitHub-hosted KVM was used. Other ABIs, 16 KB page-size devices, screen-lock/OEM behavior and full recovery/publication hardening are not verified.
 
-- [Download app-debug-apk](https://github.com/dgx3-jpg/Bare-Bones-Downloader-Android/actions/runs/42476569402/artifacts/13615906765): confirmed uploaded, 11,466,165-byte ZIP containing `app-debug.apk`.
-- [Verification reports](https://github.com/dgx3-jpg/Bare-Bones-Downloader-Android/actions/runs/42476569402/artifacts/13616125834): confirmed uploaded.
-- The initial workflow exposed missing `sdkmanager` on PATH; explicit pinned Android SDK provisioning fixed it. The next attempt encountered a compiler dependency download timeout; one failed-job retry succeeded without source changes. Debug signing cache post-step succeeded.
-- This evidence update changes documentation only; it does not alter the verified app or workflow.
+## Acceptance blocker / next action
 
-## Limits and remaining work
+Design §15 M2 says **“Test real audio AND video before proceeding.”** Its intended YouTube extraction/save gate remains unmet because CI is asked to authenticate, while the design excludes login/cookies/evasion. The owner has been asked whether to proceed with M3 implementation while explicitly recording this live-verification limit, or pause M3 for device verification. No elapsed time or preselected choice is treated as approval.
 
-No physical device/emulator verification performed. Robolectric is simulated Android testing. Native SAF provider behavior, actual adaptive launcher rendering, TalkBack/scaled type and minimum-API device behavior remain manual checks. No real downloads, metadata writes, ReplayGain scans, transcoding, codec/size validation, strict YouTube extraction/duplicates, staging/publication or background service exists. All queue/progress/log download activity is clearly labelled placeholder data.
-
-The v2 package ID is different from the v1 draft; that draft cannot update in place into v2 or transfer its preferences automatically. V2 identity/schema is the baseline from here. Local signing remains stable while its debug key is preserved. Actions caches its debug key, but cache eviction changes that identity; durable update-safe signing remains M6. No keys or secrets are committed or included in APK artifacts.
-
-Desktop reference mapping and test limits: [docs/DESKTOP_PARITY.md](docs/DESKTOP_PARITY.md). No claim of full desktop parity.
-
-## Next action
-
-Stop after M1. On the user's next instruction, M2 is real YouTube audio AND H.264/AAC video extraction, FIFO/duplicate reservations, separate SAF destinations, staged saving/cancellation and foreground service; verify actual audio/video before moving on.
-
-## Milestone 2 implementation candidate — verification in progress
-
-The current source now replaces demo production data with a Room-backed queue, strict canonical YouTube parser, per-type duplicate reservations, enqueue snapshots, FIFO foreground service/notification, cancellation, interrupted recovery, explicit retries/resume, real yt-dlp/FFmpeg/ffprobe gateway, private staging, stream-copy audio and compatible H.264/AAC video, safe names and verified SAF copy. Matching blocked destinations can be replaced without changing unrelated jobs. Metadata/ReplayGain remain warnings; type-specific size caps fail explicitly until M4; additional encoders remain M3.
-
-Pinned native integration and license obligations: docs/NATIVE_RUNTIME.md. Local emulator startup was attempted and blocked by absent KVM and insufficient free disk for its required configuration; the unused image was removed. A GitHub-hosted Android emulator workflow and real native/SAF/live tests are being prepared. No real download/device success is claimed yet. M2 acceptance gate is still pending; M3 is not started.
+Current app: **0.2.0 / code 3**, stable package `com.barebonesdownloader.android`. Debug identity uses the existing cached key; cache eviction remains a signing-continuity limitation. [Actions APKs/reports](https://github.com/dgx3-jpg/Bare-Bones-Downloader-Android/actions/workflows/android.yml), [native provenance/licenses](docs/NATIVE_RUNTIME.md), [parity map](docs/DESKTOP_PARITY.md). Native GPL distribution obligations apply; this remains the owner's private personal-use build.

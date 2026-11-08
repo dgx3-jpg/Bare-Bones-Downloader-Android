@@ -1,41 +1,53 @@
 # Bare Bones Downloader for Android
 
-Standalone native Android shell following [design v2](ANDROID_DOWNLOADER_SPEC.md), using the [Windows app](https://github.com/dgx3-jpg/BareBonesDownloader) as its behavioral/visual reference. **Current source: milestone 2 implementation candidate.** Production code uses the real native gateway and Room-backed foreground queue. Real Android/live verification is in progress; milestone 2 is not yet declared accepted. See IMPLEMENTATION_STATUS.md. Historical M1 shell details below describe the preceding release.
+Native Kotlin / Compose Android app following [design v2](ANDROID_DOWNLOADER_SPEC.md), with the [desktop app](https://github.com/dgx3-jpg/BareBonesDownloader) as its behavior/visual reference. Package ID `com.barebonesdownloader.android`, Android 10+ (API 29), current milestone-2 candidate **0.2.0 / code 3**.
 
-## Build and install
+**Verification limit:** the live YouTube acceptance gate is blocked in CI by “Sign in to confirm you're not a bot.” No successful YouTube download/save is claimed. The app does not implement login, cookie imports or evasion. See [implementation status](IMPLEMENTATION_STATUS.md) for exact passing tests and blocked checks. Milestone 3 remains pending the milestone-2 gate or an explicit instruction to proceed with that limit.
 
-Open the repository root in Android Studio, or install JDK 17/21, Android SDK Platform 36 and Build Tools 35.0.0. Set `ANDROID_HOME` or create an untracked `local.properties` with `sdk.dir=/your/sdk/path`.
+## Build / APK
+
+Use JDK 17 or 21, SDK Platform 36 and Build Tools 35.0.0. Set `ANDROID_HOME`, or an untracked `local.properties` with `sdk.dir=/your/sdk/path`.
 
 ```sh
 ./gradlew testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest
-# With an Android 10+ device/emulator connected:
-./gradlew connectedDebugAndroidTest
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-Use `gradlew.bat` on Windows. Gradle 8.13 is checksum verified; AGP 8.13.2, Kotlin 2.2.21 and dependency versions are pinned. SDK 36 compile/target, minSdk 29. Robolectric tests run simulated API 35; they do not establish device integration.
+Windows: `gradlew.bat`. Gradle 8.13 is checksum-verified; AGP 8.13.2, Kotlin 2.2.21 and native dependencies are pinned. The universal debug APK includes four ABIs and is about 226 MB. No Windows tools or FFmpegKit is used.
 
-**GitHub APK:** open [Actions → Android debug APK](https://github.com/dgx3-jpg/Bare-Bones-Downloader-Android/actions/workflows/android.yml), choose a successful run, then download **app-debug-apk** under Artifacts and unzip `app-debug.apk`. Signing keys are never included in the artifact. CI runs on pushes/PRs and can be run manually. Build/test reports are a separate artifact.
+[Actions → Android debug APK](https://github.com/dgx3-jpg/Bare-Bones-Downloader-Android/actions/workflows/android.yml) publishes **app-debug-apk** and verification reports after successful builds. Download the artifact ZIP and extract `app-debug.apk`. The optional manual workflow runs real Android native tests; its **live** input is separate from the independent fixture checks. Live tests use an attributed Creative Commons Blender clip and are intentionally opt-in.
 
-## Shell behavior
+## Current implementation
 
-- Main screen: fresh-launch Audio only, Video + audio switch, type-specific destination, multiline links with explicit Paste, Queue audio/Queue video, Cancel current, Clear waiting, compact URL/Type/Status cards and a collapsible/copyable log capped at 60,000 characters.
-- Mode changes preserve input and queued placeholders. Folder selection is requested only for the relevant type. Cancelling keeps input. The shell does basic HTTP(S) validation and retains rejected tokens; real YouTube normalization, duplicate reservations and extraction are milestone 2.
-- Settings gear opens General / Audio / Video / Metadata / Appearance. Changes remain draft until Save; Cancel/back discards them. Two SAF destinations can be the same. Changes to folder selections are checked for persisted write/create permission on Save, without writing media.
-- Nine format choices, supported encoding controls, independent decimal-MB caps and resolution settings are saved **preferences**, not working encoders. Unsupported quality modes are disabled. Defaults match the desktop: best/default/quality 5/192 kbps, caps off, all 11 metadata fields and ReplayGain on, Light theme.
-- Metadata preview is the static Here Comes the Sun / Beatles / Abbey Road example. Deselection clears values; AAC/ALAC/M4A source URL and WAV composer/source URL/album artist show Unavailable. No network lookup or artwork is implied.
-- Light/Dark is explicit and persisted. Penrose adaptive icon is converted from the original SVG. Room schema includes type, destination and complete settings snapshots; demo UI remains in-memory. No worker/background service or persistent real queue is claimed.
+- Native utility main screen: Audio/Video switch, relevant folder, multiline links, explicit Paste, queue controls, URL/Type/Status cards, bounded/copyable diagnostics; General/Audio/Video/Metadata/Appearance draft settings with Save/Cancel.
+- Strict YouTube watch/Shorts/youtu.be parsing; canonical IDs; playlist context removed; malformed URLs, channel/playlist-only/live paths rejected. Metadata inspection rejects live/collection results. Other sources are M6.
+- Room-backed FIFO and history, one worker, source+kind duplicate reservations, immutable per-job settings. Explicit Resume/Retry after restart; interrupted work is never marked completed. A failed job releases its reservation and does not stop later jobs.
+- User-initiated data-sync foreground service with progress/cancel notification, process-group cancellation, bounded wake lock and private staging. Notification denial is handled. Android/OEM background limits still apply.
+- Separate persisted SAF folders; only the relevant type is required. Revoked/unavailable destination pauses FIFO. Explicit replacement repairs matching waiting jobs of that type. No all-files permission.
+- yt-dlp/Python/QuickJS and FFmpeg/ffprobe from `youtubedl-android` 0.18.1. Stream-copy best-source audio and compatible H.264/AAC MP4 pipeline; output validated before SAF publication, copied bytes verified, incomplete destination removed on failure. Existing filenames are skipped, never intentionally overwritten. SAF providers do not universally provide atomic publication.
+- Unicode-safe, bounded title filenames; audio omits source ID, video includes it; optional canonical URL suffix.
 
-## Identity and signing
+Format/quality/resolution preferences for M3 are present, but **this M2 candidate explicitly rejects non-default audio encoding and non-default video resolution**, rather than ignoring them. Size caps are explicitly blocked until M4. Metadata selection and ReplayGain processing are M5; audio completes with a visible warning that source tags may remain. Video skips those audio-only operations. No actual conversion/tag/ReplayGain success is implied by a preference control.
 
-The v2-required ID is **com.barebonesdownloader.android**, display name Bare Bones Downloader, version 0.1.1 (code 2). This replaces the previous audio-only scaffold's `com.barebones.downloader`; Android treats it as a separate app, so it cannot inherit that draft's data through an in-place update. This v2 identity is the baseline for future milestones; retain it and migrate Room schemas from here.
+## Native testing
 
-Local debug builds reuse your SDK's debug keystore; keep it backed up and keep the same key for updates. CI caches its generated debug keystore under `bare-bones-android-debug-signing-v1`. **Caches can expire or be evicted**, so CI signing continuity is best effort until durable signing is configured in milestone 6. CI and local builds may use different debug keys: Android rejects in-place updates between them. Keep the same build source/key, or reinstall (which clears app data). Never commit keys or passwords.
+With an API 29+ emulator/device connected:
 
-No release signing is configured. Signed release readiness, real formats, metadata, ReplayGain and device acceptance gates remain in their specified milestones.
+```sh
+# Native owned AV fixture, process-group cancellation, and real SAF/collision/cleanup checks:
+./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.barebonesdownloader.android.NativeIntegrationTest
+# Optional live extraction + saving (site availability/authentication restrictions may block it):
+bash tools/run-native-tests.sh true
+```
 
-## Code and evidence
+Native tests use real DocumentsUI grants and owned generated media; they do not manufacture persisted permission rows or fake native command output. Host/JVM repository tests use labelled fakes for scheduling only. No physical phone verification has been performed.
 
-Single app module, MVVM/Flow; `ui/`, `domain/model/`, `data/{db,settings,repository}/`, and `storage/`. DataStore persists preferences and normalizes invalid values; Room's schema is tested separately from placeholder UI. The old four-bottom-tab layout and audio-only defaults have been replaced.
+## Identity, signing and licensing
 
-See [implementation status](IMPLEMENTATION_STATUS.md), [desktop parity map](docs/DESKTOP_PARITY.md), and [third-party notices](THIRD_PARTY_NOTICES.md). The uploaded document is the product specification; this task implements changes affecting milestone 1 only.
+The v2 package ID is stable from 0.1.1 onward. Earlier audio-only `com.barebones.downloader` was a different app and cannot transfer data through an in-place update. Room schema 1→2 migration is tested; DataStore preferences are retained.
+
+Local builds reuse the SDK debug keystore; back it up. Actions caches its debug key, but caches can expire/evict. CI and local keys can differ, preventing in-place updates between those build sources. Durable release/update signing remains M6. Never commit keys or secrets.
+
+Native wrapper/FFmpeg integration uses GPL-3.0 components. This is a private personal-use build for the repository owner. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and [native provenance, source/build references and redistribution obligations](docs/NATIVE_RUNTIME.md). No new license grant over the owner's original code is inferred. Licenses are available in Settings → General → Open-source notices.
+
+[Desktop parity map](docs/DESKTOP_PARITY.md) tracks implemented code separately from actual runtime evidence. No full parity claim is made.

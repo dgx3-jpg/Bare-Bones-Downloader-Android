@@ -13,7 +13,7 @@ class YtDlpGateway(private val runtime: NativeRuntime, private val log: Download
     override fun cancel(item: DownloadItem) = runtime.cancel(item.id)
     override suspend fun download(item: DownloadItem, directory: File, progress: (Int?) -> Unit): StagedMedia {
         runtime.initialize()
-        val inspect = runtime.execute(item.id, runtime.python, base() + listOf("--dump-single-json", "--skip-download", item.sourceUrl))
+        val inspect = runtime.execute(item.id, runtime.python, base() + listOf("--dump-single-json", "--skip-download", item.sourceUrl), timeoutSeconds = 90)
         val info = json.parseToJsonElement(inspect.out).jsonObject
         require(info["_type"]?.jsonPrimitive?.contentOrNull !in setOf("playlist", "multi_video") && info["entries"] == null) { "Only a single video is supported; collections are rejected." }
         require(info["is_live"]?.jsonPrimitive?.booleanOrNull != true && info["live_status"]?.jsonPrimitive?.contentOrNull !in setOf("is_live", "is_upcoming", "post_live")) { "Live streams are not supported." }

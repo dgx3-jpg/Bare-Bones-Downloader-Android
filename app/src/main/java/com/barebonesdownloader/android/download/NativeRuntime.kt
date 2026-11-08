@@ -7,6 +7,8 @@ import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.ffmpeg.FFmpeg
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
@@ -37,11 +39,12 @@ class NativeRuntime(private val context: Context) {
     fun cancel(id: UUID) { cancelled.add(id); running[id]?.let(::kill) }
     fun cancelAll() { running.keys.forEach(::cancel) }
     fun check(id: UUID) { if (id in cancelled) throw CancellationException("Cancelled") }
+    private fun killGroup(slot: Slot) { if (slot.group > 0) runCatching { Os.kill(-slot.group, OsConstants.SIGKILL) } }
     private fun kill(slot: Slot) {
-        if (slot.group > 0) runCatching { Os.kill(-slot.group, OsConstants.SIGKILL) }
+        killGroup(slot)
         slot.process.destroyForcibly()
     }
-    suspend fun execute(id: UUID, executable: File, args: List<String>, onLine: (String) -> Unit = {}): Result = withContext(Dispatchers.IO) {
+    suspend fun execute(id: UUID, executable: File, args: List<String>, timeoutSeconds: Long = 7200, onLine: (String) -> Unit = {}): Result = withContext(Dispatchers.IO) {
         initialize(); check(id)
         val launcher = "import os,sys; os.setsid(); print('BBD_PID='+str(os.getpid()),flush=True); assert sys.stdin.buffer.read(1)==b'1'; os.execv(sys.argv[1],sys.argv[1:])"
         val builder = ProcessBuilder(listOf(python.absolutePath, "-c", launcher, executable.absolutePath) + args)
@@ -76,13 +79,18 @@ class NativeRuntime(private val context: Context) {
         }.apply { name = "download-stdout"; start() }
         val stderr = Thread { runCatching { process.errorStream.bufferedReader().use { reader -> reader.lineSequence().forEach { append(err, it, 65_536) } } } }
             .apply { name = "download-stderr"; start() }
-        val deadline = System.nanoTime() + TimeUnit.HOURS.toNanos(2)
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(timeoutSeconds)
         try {
             while (!process.waitFor(200, TimeUnit.MILLISECONDS)) {
-                check(id)
+                currentCoroutineContext().ensureActive(); check(id)
                 check(System.nanoTime() < deadline) { "The native command exceeded its time limit. Retry a shorter item." }
             }
-            stdout.join(); stderr.join(); check(id)
+            // A completed tool has no legitimate unfinished children. Close inherited
+            // child pipes before draining, without closing the parent's unread bytes.
+            killGroup(slot)
+            stdout.join(5000); stderr.join(5000)
+            check(!stdout.isAlive && !stderr.isAlive) { "Native output did not finish draining. Retry this item." }
+            currentCoroutineContext().ensureActive(); check(id)
             check(slot.group > 0) { "Native process isolation failed. No output was published." }
             check(process.exitValue() == 0) { sanitizeDiagnostic(err.toString().ifBlank { out.toString() }).ifBlank { "Media tool failed (exit ${process.exitValue()})." } }
             Result(out.toString(), err.toString())

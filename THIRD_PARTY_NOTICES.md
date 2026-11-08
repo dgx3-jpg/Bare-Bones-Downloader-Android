@@ -1,6 +1,6 @@
-# Third-party notices — milestone 1
+# Third-party notices
 
-No yt-dlp, FFmpeg, tagging engine, media fixture, or native codec is bundled yet. Their versions, ABI support and license obligations must be assessed in milestone 2 before integration.
+The current M2 candidate bundles yt-dlp/Python/QuickJS and FFmpeg/ffprobe through pinned youtubedl-android 0.18.1. Native versions, ABI inventory, GPL obligations and source/build references are recorded in docs/NATIVE_RUNTIME.md. Metadata/tagging and ReplayGain integrations are not implemented.
 
 The Penrose icon is copied from the user’s desktop repository (`assets/penrose-white-grey.svg`, blob `997c55bfa1ac3e26f42229a2fdd0b09278169084`) and converted to Android vector/adaptive resources without redesign. Its original ownership is unchanged.
 
@@ -24,4 +24,4 @@ The Apache-2.0 license is included in `app/src/main/res/raw/apache_license.txt` 
 
 ## Milestone 2 native integration
 
-The prior “no native engine bundled” statement applies to the historical milestone-1 build only. Version 0.2.0 adds `io.github.junkfood02.youtubedl-android:library:0.18.1` and `:ffmpeg:0.18.1` (GPL-3.0), with Python, QuickJS, FFmpeg and codec dependencies. See [native provenance, licenses, source/build references and tested ABI limits](docs/NATIVE_RUNTIME.md). The GPL text is bundled and shown in the app. Broader redistribution is subject to corresponding-source and combined-work licensing obligations; private personal use is the current scope.
+Version 0.2.0 adds `io.github.junkfood02.youtubedl-android:library:0.18.1` and `:ffmpeg:0.18.1` (GPL-3.0), with Python, QuickJS, FFmpeg and codec dependencies. See [native provenance, licenses, source/build references and tested ABI limits](docs/NATIVE_RUNTIME.md). The GPL text is bundled and shown in the app. Broader redistribution is subject to corresponding-source and combined-work licensing obligations; private personal use is the current scope.

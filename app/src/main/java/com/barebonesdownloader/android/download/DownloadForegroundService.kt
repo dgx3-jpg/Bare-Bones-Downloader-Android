@@ -4,6 +4,8 @@ import android.app.*
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.IBinder
+import android.os.PowerManager
+import java.util.concurrent.TimeUnit
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.barebonesdownloader.android.DownloaderApplication
@@ -19,14 +21,18 @@ class DownloadForegroundService : Service() {
     private val app get() = application as DownloaderApplication
     private var worker: Job? = null
     private var latestStartId = 0
+    private val wakeLock by lazy {
+        getSystemService(PowerManager::class.java).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "bbd:active-download").apply { setReferenceCounted(false) }
+    }
     override fun onCreate() {
         super.onCreate()
         getSystemService(NotificationManager::class.java).createNotificationChannel(NotificationChannel(CHANNEL, "Active downloads", NotificationManager.IMPORTANCE_LOW))
     }
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         latestStartId = startId
-        if (intent?.action == CANCEL) { scope.launch { app.downloads.cancelCurrent() }; return START_NOT_STICKY }
+        if (intent?.action == CANCEL) { scope.launch { app.downloads.cancelCurrent(); if (worker?.isActive != true) stopSelfResult(startId) }; return START_NOT_STICKY }
         ServiceCompat.startForeground(this, ID, notification(null), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+        wakeLock.acquire(TimeUnit.HOURS.toMillis(6))
         if (worker?.isActive != true) worker = scope.launch {
             app.ready.await()
             val updates = launch {
@@ -59,7 +65,7 @@ class DownloadForegroundService : Service() {
             .addAction(0, "Cancel current", cancel).build()
     }
     override fun onTimeout(startId: Int, fgsType: Int) { app.coordinator.cancelAll(); stopForeground(STOP_FOREGROUND_REMOVE); stopSelf() }
-    override fun onDestroy() { app.coordinator.cancelAll(); scope.cancel(); super.onDestroy() }
+    override fun onDestroy() { app.coordinator.cancelAll(); scope.cancel(); if (wakeLock.isHeld) wakeLock.release(); super.onDestroy() }
     override fun onBind(intent: Intent?): IBinder? = null
     companion object { const val CANCEL = "com.barebonesdownloader.android.CANCEL"; private const val CHANNEL = "downloads"; private const val ID = 7 }
 }

@@ -13,6 +13,9 @@ import androidx.test.uiautomator.Until
 import com.barebonesdownloader.android.domain.model.*
 import com.barebonesdownloader.android.download.*
 import com.barebonesdownloader.android.media.YtDlpGateway
+import com.barebonesdownloader.android.media.StagedMedia
+import com.barebonesdownloader.android.storage.*
+import androidx.documentfile.provider.DocumentFile
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.first
 import org.junit.*
@@ -54,8 +57,7 @@ class NativeIntegrationTest {
         while (SystemClock.elapsedRealtime() < end && runCatching { Os.kill(pid, 0) }.isSuccess) delay(100)
         assertTrue("Native child survived cancellation", runCatching { Os.kill(pid, 0) }.isFailure)
     }
-    @Test fun cLiveYoutubeAudioAndVideoReachSafAsReadableMedia() = runBlocking {
-        Assume.assumeTrue("Live integration is explicitly opt-in", InstrumentationRegistry.getArguments().getString("live") == "true")
+    @Test fun cRealSafCopyCollisionAndCancellationWithOwnedMedia() = runBlocking {
         app.ready.await()
         val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
         device.executeShellCommand("mkdir -p /sdcard/Download/BBDM2Tests")
@@ -87,6 +89,36 @@ class NativeIntegrationTest {
         val selected = withTimeout(10_000) { app.settings.settings.first { it.audioFolderUri != null } }
         val prefs = selected.copy(videoFolderUri = selected.audioFolderUri, videoFolderName = selected.audioFolderName)
         app.settings.update { prefs }
+        val storage = SafMediaStorage(app)
+        val video = File(app.cacheDir, "owned-av-fixture.mp4")
+        assertTrue("Native fixture is missing", video.isFile)
+        val audio = File(app.cacheDir, "owned-audio-fixture.m4a")
+        app.runtime.execute(UUID.randomUUID(), app.runtime.ffmpeg, listOf("-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-i", video.path, "-map", "0:a:0", "-vn", "-c:a", "copy", audio.path))
+        val saved = mutableListOf<String>()
+        try {
+            for ((kind, file) in listOf(DownloadKind.AUDIO to audio, DownloadKind.VIDEO to video)) {
+                val item = DownloadItem(sourceUrl = "owned-fixture", mediaId = "owned", kind = kind, destinationUri = prefs.audioFolderUri)
+                val media = StagedMedia(file, "Owned fixture ${kind.name}", if (kind == DownloadKind.VIDEO) "video/mp4" else "audio/mp4")
+                val uri = storage.publish(item, media) {}; saved += uri
+                val copy = File(app.cacheDir, "verified-${kind.name}.${file.extension}")
+                app.contentResolver.openInputStream(android.net.Uri.parse(uri))!!.use { input -> copy.outputStream().use(input::copyTo) }
+                assertArrayEquals(file.readBytes(), copy.readBytes())
+                YtDlpGateway(app.runtime, app.diagnostics).validate(item, copy)
+                assertTrue(runCatching { storage.publish(item, media) {} }.exceptionOrNull() is DestinationExists)
+                var checks = 0
+                val cancelled = media.copy(title = "Cancelled owned fixture ${kind.name}")
+                assertTrue(runCatching { storage.publish(item, cancelled) { if (++checks >= 3) throw CancellationException("Test cancellation") } }.exceptionOrNull() is CancellationException)
+                val tree = DocumentFile.fromTreeUri(app, android.net.Uri.parse(prefs.audioFolderUri))!!
+                assertNull(tree.findFile(FilenamePolicy.name(item, cancelled.title, file.extension)))
+                Log.i("BBD_INTEGRATION", "SAF saved and probed $kind; collision preserved original; cancelled destination removed.")
+            }
+        } finally { saved.forEach { DocumentFile.fromSingleUri(app, android.net.Uri.parse(it))?.delete() } }
+    }
+    @Test fun dLiveYoutubeAudioAndVideoReachSafAsReadableMedia() = runBlocking {
+        Assume.assumeTrue("Live integration is explicitly opt-in", InstrumentationRegistry.getArguments().getString("live") == "true")
+        app.ready.await()
+        val prefs = app.settings.settings.first()
+        assertNotNull("Real SAF permission test must run before live test", prefs.audioFolderUri)
         val source = InstrumentationRegistry.getArguments().getString("source") ?: "https://www.youtube.com/watch?v=aqz-KE-bpKQ"
         app.downloads.enqueue(source, DownloadKind.AUDIO, prefs)
         app.downloads.enqueue(source, DownloadKind.VIDEO, prefs)

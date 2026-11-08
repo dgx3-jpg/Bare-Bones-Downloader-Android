@@ -29,6 +29,13 @@ class DownloadPolicyTest {
         assertEquals("_CON", FilenamePolicy.clean("CON"))
         assertFalse(sanitizeDiagnostic("Error https://secret.example/path?token=private failed").contains("private"))
     }
+    @Test fun authenticationFailureDoesNotSuggestUnsupportedCookieImports() {
+        val problem = describeDownloadFailure(IllegalStateException("Sign in to confirm you are not a bot. Use --cookies https://example.test/?token=secret"))
+        assertEquals("AUTH_REQUIRED", problem.code); assertFalse(problem.message.contains("--cookies"))
+        assertFalse(problem.diagnostic.contains("secret"))
+        assertEquals("NO_SPACE", describeDownloadFailure(IllegalStateException("No space left on device")).code)
+        assertEquals("TIMEOUT", describeDownloadFailure(IllegalStateException("Socket timed out")).code)
+    }
     @Test fun videoSelectorRequiresBothCompatibleStreamsAndAppliesHeightToBothPaths() {
         val choice = videoSelector(720)
         assertTrue(choice.contains("bestaudio[acodec^=mp4a]")); assertEquals(2, Regex("height<=720").findAll(choice).count())

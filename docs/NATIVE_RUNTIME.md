@@ -1,4 +1,4 @@
-# Native runtime provenance — milestone 2 candidate
+# Native runtime provenance — milestone 2
 
 Pinned Maven Central coordinates: `io.github.junkfood02.youtubedl-android:{library,ffmpeg,common}:0.18.1`. Upstream repository/tag: https://github.com/yausername/youtubedl-android/tree/0.18.1. Central metadata lists this as the latest release at inspection on 2026-11-08.
 
@@ -12,7 +12,7 @@ Audited AAR SHA-256:
 
 The library AAR bundles yt-dlp **2025.11.12** (`335653be82d5ef999cfc2879d005397402eebec1`), Python and QuickJS. The FFmpeg AAR supplies `libffmpeg.so`, `libffprobe.so` and packaged dependencies for **arm64-v8a, armeabi-v7a, x86_64, x86**. Native execution requires installer extraction (`useLegacyPackaging` / `extractNativeLibs`); no executable is downloaded at app runtime. Private staging and SAF avoid the obsolete broad-storage advice in the upstream README.
 
-Archive inspection of the x86_64 libavutil configuration found `--enable-gpl --enable-version3 --enable-libmp3lame --enable-libopus --enable-libvorbis --enable-libx264 --disable-libfdk-aac`, and no `--enable-nonfree`. Configuration strings are **not** an executed codec test. Actual runtime versions, native decoding/encoding and process-group behavior must be verified by `NativeIntegrationTest` on Android before claiming support. Other ABIs and 16 KB page-size devices remain separate validation targets.
+Archive inspection of the x86_64 libavutil configuration found `--enable-gpl --enable-version3 --enable-libmp3lame --enable-libopus --enable-libvorbis --enable-libx264 --disable-libfdk-aac`, and no `--enable-nonfree`. Configuration strings are **not** an executed codec test. Android 10/x86_64 native tests executed FFmpeg/ffprobe 7.1.1 and yt-dlp 2025.11.12, generated/validated real H.264/AAC media, and passed descendant cancellation. Broad format conversion remains M3; real YouTube saving remains blocked by site authentication. Other ABIs and 16 KB page-size devices remain separate validation targets.
 
 ## Licenses and corresponding source
 
@@ -31,3 +31,7 @@ Extractor updates are through pinned app releases. No automatic, unsigned remote
 ## Live integration fixture
 
 Blender Foundation / Blender Institute, **Big Buck Bunny** (2008), Creative Commons Attribution 3.0: https://peach.blender.org/about/ and https://creativecommons.org/licenses/by/3.0/. Public YouTube fixture: `aqz-KE-bpKQ` (official Blender Foundation edition). Used solely for private opt-in extraction/saving tests; media files are not uploaded in APK/report artifacts. Attribution and license remain with the creators. The older yt-dlp test video `BaW_jenozKc` returned “This video is unavailable” on the Android test date.
+
+Runtime bounds: metadata inspection has a 90-second process deadline; other native commands have a two-hour bound. After the parent exits, its remaining process group is killed and output draining is bounded. Coroutine cancellation is checked while waiting; output pipes cannot intentionally keep the queue waiting indefinitely. Active service work holds a bounded (six-hour maximum) partial wake lock, released on service destruction. These limits do not override Android service/battery policies.
+
+Live gate evidence: the Creative Commons clip returned “Sign in to confirm you're not a bot” from the GitHub-hosted Android emulator. No cookies, alternate client impersonation or access-restriction bypass was attempted. This is an external acceptance blocker, not a successful download test.

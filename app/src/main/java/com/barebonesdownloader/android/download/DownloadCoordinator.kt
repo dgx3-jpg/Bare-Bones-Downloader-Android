@@ -27,6 +27,7 @@ class DownloadCoordinator(private val repository: RoomDownloadRepository, privat
                     if (!storage.writable(item.destinationUri)) throw FolderUnavailable()
                     require((if (item.kind == DownloadKind.AUDIO) item.settingsSnapshot.audioMaxSizeMb else item.settingsSnapshot.videoMaxSizeMb) == 0) { "File-size caps arrive in milestone 4. Disable caps before queueing." }
                     require(item.kind != DownloadKind.AUDIO || item.settingsSnapshot.audioFormat == AudioFormat.ORIGINAL && item.settingsSnapshot.qualityMode == QualityMode.DEFAULT) { "This build supports Best available/default audio only; encoding arrives in milestone 3." }
+                    require(item.kind != DownloadKind.VIDEO || item.settingsSnapshot.videoMaxHeight == 0) { "Video resolution controls arrive in milestone 3. Choose Best available for this build." }
                     current = item
                     repository.change(item.id) { if (it.status == DownloadStatus.QUEUED) it.copy(status = DownloadStatus.INSPECTING) else it }
                     checkActive(item.id)
@@ -61,9 +62,10 @@ class DownloadCoordinator(private val repository: RoomDownloadRepository, privat
                     if (!currentCoroutineContext().isActive) throw e
                     log.add("Cancelled ${item.kind.label} item ${item.mediaId}; partial staging retained.")
                 } catch (e: Exception) {
+                    val failure = describeDownloadFailure(e)
                     repository.change(item.id) { if (it.status == DownloadStatus.CANCELLED) it else it.copy(status = DownloadStatus.FAILED,
-                        reservationKey = null, progressPercent = null, errorCode = "DOWNLOAD", errorMessage = sanitizeDiagnostic(e.message ?: "Download failed. Try again or update the app's extractor.")) }
-                    log.add("Item failed: ${sanitizeDiagnostic(e.message.orEmpty())}")
+                        reservationKey = null, progressPercent = null, errorCode = failure.code, errorMessage = failure.message) }
+                    log.add("Item failed (${failure.code}): ${failure.diagnostic}")
                 } finally { progressUpdates.remove(item.id); current = null }
             }
         } finally { worker.unlock() }
