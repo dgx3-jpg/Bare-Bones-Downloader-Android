@@ -29,7 +29,7 @@ import java.util.UUID
 class NativeIntegrationTest {
     @get:Rule val ui = createAndroidComposeRule<MainActivity>()
     private val app get() = ui.activity.application as DownloaderApplication
-    @Test fun aNativeVersionsAndReadableAvFixture() = runBlocking {
+    @Test fun aNativeVersionsAndReadableAvFixture() = runBlocking<Unit> {
         val runtime = app.runtime; val id = UUID.randomUUID()
         withContext(Dispatchers.IO) { runtime.initialize() }
         val versions = listOf(runtime.execute(id, runtime.python, listOf(runtime.ytdlp.path, "--version")).out,
@@ -44,7 +44,7 @@ class NativeIntegrationTest {
         YtDlpGateway(runtime, app.diagnostics).validate(item, fixture)
         assertTrue(fixture.length() > 0)
     }
-    @Test fun eEveryAudioFormatAndExplicitEncodingModeDecodes() = runBlocking {
+    @Test fun eEveryAudioFormatAndExplicitEncodingModeDecodes() = runBlocking<Unit> {
         val runtime = app.runtime
         withContext(Dispatchers.IO) { runtime.initialize() }
         val input = File(app.cacheDir, "owned-pcm.wav")
@@ -71,7 +71,7 @@ class NativeIntegrationTest {
         gateway.validate(DownloadItem(sourceUrl = "fixture", kind = DownloadKind.VIDEO, settingsSnapshot = AppSettings(videoMaxHeight = 360)), video)
         assertTrue(runCatching { gateway.validate(DownloadItem(sourceUrl = "fixture", kind = DownloadKind.VIDEO, settingsSnapshot = AppSettings(videoMaxHeight = 60)), video) }.exceptionOrNull() is IllegalArgumentException)
     }
-    @Test fun fStrictAudioAndVideoSizeCaps() = runBlocking {
+    @Test fun fStrictAudioAndVideoSizeCaps() = runBlocking<Unit> {
         val runtime = app.runtime
         withContext(Dispatchers.IO) { runtime.initialize() }
         val limiter = com.barebonesdownloader.android.media.MediaSizeLimiter(runtime, app.diagnostics)
@@ -95,7 +95,7 @@ class NativeIntegrationTest {
         Log.i("BBD_INTEGRATION", "CAPS verified audio=${reduced.length()} video=${vreduced.length()} strict bytes; impossible failed.")
         Unit
     }
-    @Test fun gMetadataAndReplayGainRoundTripWithoutChangingAudio() = runBlocking {
+    @Test fun gMetadataAndReplayGainRoundTripWithoutChangingAudio() = runBlocking<Unit> {
         val runtime = app.runtime
         withContext(Dispatchers.IO) { runtime.initialize() }
         val writer = com.barebonesdownloader.android.metadata.AudioTags(runtime, app.diagnostics)
@@ -130,8 +130,122 @@ class NativeIntegrationTest {
             assertEquals(before,hash(deselected,cleared.file))
             Log.i("BBD_INTEGRATION","TAGS/RG verified $format .${source.extension}: selected values, deselected removal, unchanged encoded samples.")
         }
+        val overheadInfo = kotlinx.serialization.json.JsonObject(info + ("description" to kotlinx.serialization.json.JsonPrimitive("x".repeat(200000))))
+        val capped = DownloadItem(sourceUrl="owned",extractorKey="fixture",settingsSnapshot=AppSettings())
+        val output = com.barebonesdownloader.android.media.MediaSizeLimiter(runtime,app.diagnostics).applyBytes(capped,File(app.cacheDir,"owned-pcm.wav"),File(app.cacheDir,"tag-overhead-cap"),300000) { candidate ->
+            val result=processor.apply(capped,candidate,overheadInfo,File(app.cacheDir,"tag-overhead-final"))
+            assertTrue(result.warnings.toString(),result.warnings.isEmpty()); result.file
+        }
+        assertTrue(output.length() < 300000); assertEquals("m4a",output.extension)
+        val finalTags=writer.read(capped,output)
+        assertEquals(200000,finalTags["comment"]!!.length)
+        val measured=com.barebonesdownloader.android.metadata.ReplayGain(runtime).analyse(capped,output,File(app.cacheDir,"final-gain-check"))
+        assertEquals(measured.gainDb,finalTags["replaygain_track_gain"]!!.substringBefore(' ').toDouble(),.011)
+        Log.i("BBD_INTEGRATION","FINAL TAG OVERHEAD CAP verified: ${output.length()} < 300000 bytes, tags retained and gain measured from final AAC.")
     }
-    @Test fun bCancellationTerminatesNativeDescendant() = runBlocking {
+    @Test fun hSharePrefillsWithoutEnqueueAndJournalRecovers() = runBlocking<Unit> {
+        app.ready.await()
+        val before = app.database.downloads().all().size
+        ui.activity.runOnUiThread {
+            ui.activity.startActivity(Intent(ui.activity,MainActivity::class.java).setAction(Intent.ACTION_SEND).setType("text/plain").addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP).putExtra(Intent.EXTRA_TEXT,"https://www.tiktok.com/@fixture/video/123"))
+        }
+        ui.waitUntil(10000) { ui.onAllNodes(hasTestTag("links_input") and hasText("https://www.tiktok.com/@fixture/video/123", substring=true)).fetchSemanticsNodes().isNotEmpty() }
+        ui.onNodeWithTag("links_input").assertTextContains("https://www.tiktok.com/@fixture/video/123")
+        assertEquals(before,app.database.downloads().all().size)
+        val prefs = app.settings.settings.first()
+        val tree = DocumentFile.fromTreeUri(app,android.net.Uri.parse(prefs.audioFolderUri))!!
+        val journal = PublicationJournal(app)
+        val interruptedId = UUID.randomUUID()
+        val interrupted = tree.createFile("application/octet-stream","owned-interrupted-$interruptedId.bin")!!
+        journal.record(interruptedId,interrupted.uri.toString())
+        val completedId = UUID.randomUUID()
+        val completed = tree.createFile("application/octet-stream","owned-completed-$completedId.bin")!!
+        app.database.downloads().insert(DownloadItem(id=completedId,sourceUrl="owned",status=DownloadStatus.COMPLETED,outputUri=completed.uri.toString()))
+        journal.record(completedId,completed.uri.toString())
+        journal.recover(app.downloads,app.diagnostics)
+        assertFalse(interrupted.exists()); assertTrue(completed.exists())
+        completed.delete()
+    }
+    @Test fun iOwnedHttpFixtureCompletesBothModesWhileScreenOff() = runBlocking<Unit> {
+        app.ready.await()
+        val bytes = File(app.cacheDir,"owned-av-fixture.mp4").readBytes()
+        val server = java.net.ServerSocket(0,50,java.net.InetAddress.getByName("127.0.0.1"))
+        val serving = CoroutineScope(Dispatchers.IO).launch {
+            while (isActive && !server.isClosed) {
+                val socket = try { server.accept() } catch (_: Exception) { break }
+                launch {
+                    runCatching { socket.use { connection ->
+                        connection.soTimeout=10000
+                        val reader=connection.getInputStream().bufferedReader()
+                        val request=reader.readLine().orEmpty()
+                        var range: String? = null
+                        while (true) { val line=reader.readLine() ?: break; if (line.isEmpty()) break; if (line.startsWith("Range:",true)) range=line.substringAfter(':').trim() }
+                        val start=range?.substringAfter("bytes=")?.substringBefore('-')?.toIntOrNull()?.coerceIn(0,bytes.lastIndex) ?: 0
+                        val out=connection.getOutputStream()
+                        val partial=range != null
+                        out.write(("HTTP/1.1 " + (if(partial) "206 Partial Content" else "200 OK") + "\r\nContent-Type: video/mp4\r\nContent-Length: ${bytes.size-start}\r\nAccept-Ranges: bytes\r\n" + (if(partial) "Content-Range: bytes $start-${bytes.lastIndex}/${bytes.size}\r\n" else "") + "Connection: close\r\n\r\n").toByteArray())
+                        if (!request.startsWith("HEAD")) { delay(3000); out.write(bytes,start,bytes.size-start) }; out.flush()
+                    } }
+                }
+            }
+        }
+        val device=UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
+        val prefs=app.settings.settings.first().copy(metadata=MetadataSettings(emptySet()),replayGainEnabled=false)
+        val ids=mutableListOf<UUID>()
+        try {
+            for ((name,kind) in listOf("owned" to DownloadKind.AUDIO,"owned" to DownloadKind.VIDEO,"owned2" to DownloadKind.VIDEO)) {
+                val id=UUID.randomUUID(); ids+=id
+                // Local owned fixture bypasses only public-URL admission; actual yt-dlp, FIFO,
+                // service, FFmpeg, metadata removal and SAF publication all execute normally.
+                app.database.downloads().insert(DownloadItem(id=id,sourceUrl="http://127.0.0.1:${server.localPort}/$name.mp4",sourceHost="127.0.0.1",extractorKey="generic",mediaId=name,
+                    kind=kind,queueOrder=app.database.downloads().nextOrder(),reservationKey="generic:$name|${kind.name}",settingsSnapshot=prefs,destinationUri=prefs.folder(kind)))
+            }
+            withContext(Dispatchers.Main) { ui.activity.startForegroundService(Intent(app,DownloadForegroundService::class.java)) }
+            withTimeout(10000) { app.downloads.items.first { rows -> rows.any { it.id in ids && it.status in activeStatuses } } }
+            device.sleep()
+            val done=withTimeout(180000) { app.downloads.items.first { rows -> ids.all { id -> rows.any { it.id==id && it.status in setOf(DownloadStatus.COMPLETED,DownloadStatus.FAILED,DownloadStatus.CANCELLED,DownloadStatus.SKIPPED) } } } }.filter { it.id in ids }.sortedBy { it.queueOrder }
+            done.forEach { assertEquals(it.errorMessage,DownloadStatus.COMPLETED,it.status) }
+            assertEquals(listOf(DownloadKind.AUDIO,DownloadKind.VIDEO,DownloadKind.VIDEO),done.map { it.kind })
+            assertTrue(done.zipWithNext().all { (a,b) -> a.completedAt!! <= b.completedAt!! })
+            done.forEach { DocumentFile.fromSingleUri(app,android.net.Uri.parse(it.outputUri))?.delete() }
+            Log.i("BBD_INTEGRATION","SCREEN-OFF FIFO verified: actual generic HTTP extraction, Audio A / Video A / Video B, final SAF saves.")
+        } finally { server.close(); serving.cancel(); device.wakeUp(); device.executeShellCommand("wm dismiss-keyguard") }
+    }
+    @Test fun jOptInTikTokBothModesOrExplicitExtractorFailure() = runBlocking<Unit> {
+        Assume.assumeTrue(InstrumentationRegistry.getArguments().getString("tiktok")=="true")
+        app.ready.await()
+        val url="https://www.tiktok.com/@leenabhushan/video/6748451240264420610"
+        val prefs=app.settings.settings.first().copy(metadata=MetadataSettings(emptySet()),replayGainEnabled=false)
+        val gateway=YtDlpGateway(app.runtime,app.diagnostics)
+        val source=try { gateway.resolveSource(url) } catch(e: Exception) {
+            Log.i("BBD_INTEGRATION","TIKTOK EXTRACTOR LIMITATION (metadata inspection, no download success): ${describeDownloadFailure(e).message}")
+            throw e
+        }
+        for(kind in DownloadKind.entries) {
+            val item=DownloadItem(sourceUrl=source.url,extractorKey=source.extractor,mediaId=source.id,sourceHost=source.host,kind=kind,settingsSnapshot=prefs,destinationUri=prefs.folder(kind))
+            val media=gateway.download(item,File(app.cacheDir,"tiktok-${item.id}")) {}
+            val storage=SafMediaStorage(app)
+            val uri=storage.publish(item,media) {}; storage.completed(item.id)
+            assertNotNull(uri)
+            DocumentFile.fromSingleUri(app,android.net.Uri.parse(uri))?.delete()
+            Log.i("BBD_INTEGRATION","TIKTOK DOWNLOAD SAVED/VERIFIED ${kind.name}")
+        }
+    }
+    @Test fun kScaledLightAndDarkThemesRemainUsable() = runBlocking<Unit> {
+        val device=UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
+        try {
+            device.executeShellCommand("settings put system font_scale 1.3")
+            delay(1500)
+            for(theme in AppThemeMode.entries) {
+                app.settings.update { it.copy(theme=theme) }
+                delay(500); ui.waitForIdle()
+                ui.onNodeWithTag("links_input").performScrollTo().assertIsDisplayed()
+                ui.onNodeWithTag("queue_button").performScrollTo().assertIsDisplayed()
+                assertTrue(device.takeScreenshot(File(app.cacheDir,"theme-${theme.name.lowercase()}-scaled.png")))
+            }
+        } finally { device.executeShellCommand("settings put system font_scale 1.0") }
+    }
+    @Test fun bCancellationTerminatesNativeDescendant() = runBlocking<Unit> {
         val runtime = app.runtime; val id = UUID.randomUUID(); val child = CompletableDeferred<Int>()
         val command = "import subprocess,sys,time; p=subprocess.Popen([sys.executable,'-c','import time;time.sleep(90)']); print('CHILD='+str(p.pid),flush=True); time.sleep(90)"
         val task = async(Dispatchers.IO) { runtime.execute(id, runtime.python, listOf("-c", command)) { line ->
@@ -144,7 +258,7 @@ class NativeIntegrationTest {
         while (SystemClock.elapsedRealtime() < end && runCatching { Os.kill(pid, 0) }.isSuccess) delay(100)
         assertTrue("Native child survived cancellation", runCatching { Os.kill(pid, 0) }.isFailure)
     }
-    @Test fun cRealSafCopyCollisionAndCancellationWithOwnedMedia() = runBlocking {
+    @Test fun cRealSafCopyCollisionAndCancellationWithOwnedMedia() = runBlocking<Unit> {
         app.ready.await()
         val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
         device.executeShellCommand("mkdir -p /sdcard/Download/BBDM2Tests")
@@ -186,7 +300,7 @@ class NativeIntegrationTest {
             for ((kind, file) in listOf(DownloadKind.AUDIO to audio, DownloadKind.VIDEO to video)) {
                 val item = DownloadItem(sourceUrl = "owned-fixture", mediaId = "owned", kind = kind, destinationUri = prefs.audioFolderUri)
                 val media = StagedMedia(file, "Owned fixture ${kind.name}", if (kind == DownloadKind.VIDEO) "video/mp4" else "audio/mp4")
-                val uri = storage.publish(item, media) {}; saved += uri
+                val uri = storage.publish(item, media) {}; storage.completed(item.id); saved += uri
                 val copy = File(app.cacheDir, "verified-${kind.name}.${file.extension}")
                 app.contentResolver.openInputStream(android.net.Uri.parse(uri))!!.use { input -> copy.outputStream().use(input::copyTo) }
                 assertArrayEquals(file.readBytes(), copy.readBytes())
@@ -201,7 +315,7 @@ class NativeIntegrationTest {
             }
         } finally { saved.forEach { DocumentFile.fromSingleUri(app, android.net.Uri.parse(it))?.delete() } }
     }
-    @Test fun dLiveYoutubeAudioAndVideoReachSafAsReadableMedia() = runBlocking {
+    @Test fun dLiveYoutubeAudioAndVideoReachSafAsReadableMedia() = runBlocking<Unit> {
         Assume.assumeTrue("Live integration is explicitly opt-in", InstrumentationRegistry.getArguments().getString("live") == "true")
         app.ready.await()
         val prefs = app.settings.settings.first()

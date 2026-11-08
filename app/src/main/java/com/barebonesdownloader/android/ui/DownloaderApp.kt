@@ -32,10 +32,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable fun DownloaderApp(model: DownloaderViewModel) {
+@Composable fun DownloaderApp(model: DownloaderViewModel, shareVersion: Int = 0) {
     val nav = rememberNavController()
     val entry by nav.currentBackStackEntryAsState()
     val editing = entry?.destination?.route == "settings"
+    LaunchedEffect(shareVersion) { if (shareVersion > 0) { model.discard(); nav.popBackStack("main", false) } }
+    val queueing by model.queueing.collectAsStateWithLifecycle()
     val settings by model.settings.collectAsStateWithLifecycle()
     val draft by model.draft.collectAsStateWithLifecycle()
     val items by model.items.collectAsStateWithLifecycle()
@@ -82,13 +84,13 @@ import kotlinx.coroutines.withContext
             modifier = Modifier.testTag("open_settings")) { Icon(Icons.Default.Settings, contentDescription = "Settings") }
     }) }, snackbarHost = { SnackbarHost(snackbar) }) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
-            Text("YouTube audio/video · Formats, size caps and audio tags from Settings.", style = MaterialTheme.typography.bodySmall,
+            Text("Public single-item links · Audio and video.", style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
             NavHost(nav, startDestination = "main", modifier = Modifier.weight(1f)) {
                 composable("main") { MainScreen(url, { model.url.value = it }, kind, { model.kind.value = it }, settings,
                     items, log, { pick(kind, false) }, { prompt = model.add(::startDownloads) }, { model.cancelCurrent(::startDownloads) }, model::clearWaiting,
                     ::startDownloads, { model.retry(it.id, ::startDownloads) }, { pick(it.kind, false) },
-                    { (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("Downloader log", log)) }) }
+                    { (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("Downloader log", log)) }, queueing = queueing) }
                 composable("settings") {
                     draft?.let { current -> SettingsScreen(current, model::edit, { pick(it, true) }, ::discard, {
                         scope.launch {

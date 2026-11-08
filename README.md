@@ -1,53 +1,58 @@
 # Bare Bones Downloader for Android
 
-Native Kotlin / Compose Android app following [design v2](ANDROID_DOWNLOADER_SPEC.md), with the [desktop app](https://github.com/dgx3-jpg/BareBonesDownloader) as its behavior/visual reference. Package ID `com.barebonesdownloader.android`, Android 10+ (API 29), current milestones-2-and-3 candidate **0.3.0 / code 5**.
+Native Kotlin/Compose Android port of [Bare Bones Downloader](https://github.com/dgx3-jpg/BareBonesDownloader), following [design v2](ANDROID_DOWNLOADER_SPEC.md). Android 10+; package `com.barebonesdownloader.android`; current candidate **0.6.0 / code 8**.
 
-**Verification limit:** the live YouTube acceptance gate is blocked in CI by “Sign in to confirm you're not a bot.” No successful YouTube download/save is claimed. The app does not implement login, cookie imports or evasion. See [implementation status](IMPLEMENTATION_STATUS.md) for exact passing tests and blocked checks. The owner authorized continuing milestone 3 with this live-verification limit recorded. The updated extractor was tested and encountered the same restriction.
+Audio and video downloads use a single persistent FIFO queue, independent SAF destinations and captured per-job settings. Native yt-dlp, FFmpeg/ffprobe, nine audio formats, quality/bitrate modes, H.264/AAC MP4 resolution ceilings, independent strict decimal-MB caps, configurable music tags and per-track ReplayGain are implemented. Public single-item sources beyond YouTube and Android plain-text share input are included. Sharing only prefills input; choose Audio/Video and tap Queue.
 
-## Build / APK
+**Verification limits:** live YouTube extraction was blocked by a sign-in/verification request even with the updated extractor. Other sites can also restrict extraction. No login, cookie imports, DRM circumvention, live recording or playlist batches are implemented. See [actual results and APK links](IMPLEMENTATION_STATUS.md); no full device/site parity is claimed from fixture tests.
 
-Use JDK 17 or 21, SDK Platform 36 and Build Tools 35.0.0. Set `ANDROID_HOME`, or an untracked `local.properties` with `sdk.dir=/your/sdk/path`.
+## Download / install
+
+[GitHub Actions](https://github.com/dgx3-jpg/Bare-Bones-Downloader-Android/actions/workflows/android.yml) publishes `app-debug-apk` and verification reports. Download the artifact ZIP, extract `app-debug.apk`, and install it. Allow installation from your browser/file manager when Android requests it. The universal APK contains four ABIs and is about 225 MB. No Windows tools or FFmpegKit are used.
+
+Use APKs with the same signing certificate for in-place updates. Uninstalling clears app data and folder grants. CI now checks the established certificate and refuses incompatible signing keys; [signing continuity](docs/RELEASE_CHECKLIST.md) explains the private backup requirement and cache limitations.
+
+## Use
+
+1. Choose Audio only or Video + audio. Paste public single-media links, one per line or separated by whitespace.
+2. Select the relevant destination folder when first requested; audio and video folders can differ. Queue the links. Invalid, inaccessible or duplicate input remains available for correction.
+3. Configure defaults in General / Audio / Video / Metadata / Appearance. Save applies to future jobs; Cancel discards edits. Switching mode preserves links and queued jobs.
+4. Cancel current stops active native work; Clear waiting affects pending jobs. After an interruption, use Retry or Resume explicitly. Revoked folder access pauses FIFO; choose a replacement to repair matching waiting jobs.
+
+Keep the foreground notification enabled for progress/cancellation. Android/OEM service and battery limits still apply. The app holds a bounded wake lock during active work; it cannot promise indefinite background execution.
+
+## Formats / processing
+
+- Best available preserves source audio when possible. AAC and M4A contain AAC; ALAC uses M4A; FLAC, MP3, Opus, Vorbis and PCM16 WAV use their matching containers/codecs. Default copies compatible streams; explicit quality/bitrate requests encode. MP3 caps at 320 kbps; quality 10 maps to LAME 9. Unsupported combinations fail clearly.
+- Video requires real H.264 video plus AAC sound in MP4. Seven height options are ceilings, with no upscaling. Generic sites may lack codec metadata until download; actual streams are checked before any cap transcode or publication.
+- Both file caps use decimal MB and require the final tagged file to be **strictly smaller** than the cap. Under-cap output avoids re-encoding. Reduction is bounded to seven attempts; impossible caps publish nothing. Best/lossless audio becomes AAC-in-M4A when reduction is needed.
+- Music fields resolve from explicit source credits, YouTube Topic descriptions, existing tags and confident Apple catalogue matches. Only missing fields are filled. Creators/uploaders are not assumed to be song artists. Unknown fields remain empty. Selected values and deselected-tag removal are read back and verified on private copies.
+- Per-track ReplayGain uses EBU R128 loudness and sample peak analysis after encoding; tags do not normalize samples. Opus also gets its standard R128 gain. Metadata/ReplayGain failures warn and retain otherwise readable audio. Video skips music enrichment and ReplayGain.
+- Publication verifies size and SHA-256 read-back, skips collisions and removes incomplete documents on handled failures. A private publication journal supports cleanup after process death. SAF providers offer no universal atomic/exclusive rename, and permission loss can require manual cleanup. No all-files permission.
+
+## Build / test
+
+JDK 17 or 21; SDK Platform 36; Build Tools 35.0.0. Set `ANDROID_HOME` or an untracked `local.properties` with `sdk.dir=/your/sdk/path`.
 
 ```sh
-./gradlew testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest
+./gradlew testDebugUnitTest assembleDebug assembleDebugAndroidTest
+./gradlew lintDebug
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-Windows: `gradlew.bat`. Gradle 8.13 is checksum-verified; AGP 8.13.2, Kotlin 2.2.21 and native dependencies are pinned. The universal debug APK includes four ABIs and is about 226 MB. No Windows tools or FFmpegKit is used.
-
-[Actions → Android debug APK](https://github.com/dgx3-jpg/Bare-Bones-Downloader-Android/actions/workflows/android.yml) publishes **app-debug-apk** and verification reports after successful builds. [Download 0.3.0 APK artifact](https://github.com/dgx3-jpg/Bare-Bones-Downloader-Android/actions/runs/42501942123/artifacts/13625932512), then extract `app-debug.apk` from the ZIP. Build/23 JVM tests and independent native format/SAF/cancellation checks passed; the opt-in live test failed authentication, so that overall workflow is marked failed. The optional manual workflow runs real Android native tests; its **live** input is separate from the independent fixture checks. Live tests use an attributed Creative Commons Blender clip and are intentionally opt-in.
-
-## Current implementation
-
-- Native utility main screen: Audio/Video switch, relevant folder, multiline links, explicit Paste, queue controls, URL/Type/Status cards, bounded/copyable diagnostics; General/Audio/Video/Metadata/Appearance draft settings with Save/Cancel.
-- Strict YouTube watch/Shorts/youtu.be parsing; canonical IDs; playlist context removed; malformed URLs, channel/playlist-only/live paths rejected. Metadata inspection rejects live/collection results. Other sources are M6.
-- Room-backed FIFO and history, one worker, source+kind duplicate reservations, immutable per-job settings. Explicit Resume/Retry after restart; interrupted work is never marked completed. A failed job releases its reservation and does not stop later jobs.
-- User-initiated data-sync foreground service with progress/cancel notification, process-group cancellation, bounded wake lock and private staging. Notification denial is handled. Android/OEM background limits still apply.
-- Separate persisted SAF folders; only the relevant type is required. Revoked/unavailable destination pauses FIFO. Explicit replacement repairs matching waiting jobs of that type. No all-files permission.
-- Python/QuickJS and FFmpeg/ffprobe from `youtubedl-android` 0.18.1, with checksum-pinned official yt-dlp 2026.10.26. Stream-copy best-source audio and compatible H.264/AAC MP4 pipeline; output validated before SAF publication, copied bytes verified, incomplete destination removed on failure. Existing filenames are skipped, never intentionally overwritten. SAF providers do not universally provide atomic publication.
-- Unicode-safe, bounded title filenames; audio omits source ID, video includes it; optional canonical URL suffix.
-
-All nine audio formats are implemented: Best available, AAC/M4A, ALAC, FLAC, M4A/AAC, MP3, Opus, Vorbis and PCM16 WAV. Default preserves compatible streams; explicit variable-quality/bitrate modes encode with the selected codec. Unsupported encoder/mode/bitrate combinations fail clearly. MP3 caps at 320 kbps; variable quality 10 maps to LAME 9. Seven video resolution ceilings constrain both separate-stream and combined fallbacks; actual output height/codecs/container are validated. Size caps are explicitly blocked until M4. Metadata selection and ReplayGain processing are M5; audio completes with a visible warning that source tags may remain. Video skips those audio-only operations. No actual conversion/tag/ReplayGain success is implied by a preference control.
-
-## Native testing
+Windows: `gradlew.bat`. Gradle, AGP, Kotlin and dependencies are pinned. Official yt-dlp 2026.10.26 and Mutagen 1.47.0 are downloaded and checksum verified **at build time**, then bundled. The app does not update executables remotely.
 
 With an API 29+ emulator/device connected:
 
 ```sh
-# Native owned AV/audio-format fixtures, process-group cancellation, and real SAF checks:
-./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.barebonesdownloader.android.NativeIntegrationTest
-# Optional live extraction + saving (site availability/authentication restrictions may block it):
-bash tools/run-native-tests.sh true
+# Real codecs, caps, tags/RG, SAF, cancellation, share, recovery and owned HTTP FIFO fixtures:
+bash tools/run-native-tests.sh false false
+# Optional public-site checks; restrictions may cause explicit failures:
+bash tools/run-native-tests.sh true true
 ```
 
-Native tests use real DocumentsUI grants and owned generated media; they do not manufacture persisted permission rows or fake native command output. Host/JVM repository tests use labelled fakes for scheduling only. No physical phone verification has been performed.
+The manual Actions workflow also attempts a same-certificate APK update using the previous artifact, when available. Its reports distinguish skipped live checks from successful downloads. Owned generated media and local test HTTP fixtures do not prove TikTok/YouTube availability. No downloaded creator media is included in report artifacts.
 
-## Identity, signing and licensing
+## Licensing / release status
 
-The v2 package ID is stable from 0.1.1 onward. Earlier audio-only `com.barebones.downloader` was a different app and cannot transfer data through an in-place update. Room schema 1→2 migration is tested; DataStore preferences are retained.
-
-Local builds reuse the SDK debug keystore; back it up. Actions caches its debug key, but caches can expire/evict. CI and local keys can differ, preventing in-place updates between those build sources. Durable release/update signing remains M6. Never commit keys or secrets.
-
-Native wrapper/FFmpeg integration uses GPL-3.0 components. This is a private personal-use build for the repository owner. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and [native provenance, source/build references and redistribution obligations](docs/NATIVE_RUNTIME.md). No new license grant over the owner's original code is inferred. Licenses are available in Settings → General → Open-source notices.
-
-[Desktop parity map](docs/DESKTOP_PARITY.md) tracks implemented code separately from actual runtime evidence. No full parity claim is made.
+Native integration and Mutagen include GPL components. This is the owner's private personal-use build. Wider redistribution requires compatible licensing and complete corresponding source/build materials; no new license over the owner's original code is inferred. Licenses are available in Settings → General → Open-source notices. See [third-party notices](THIRD_PARTY_NOTICES.md), [native provenance](docs/NATIVE_RUNTIME.md), [parity map](docs/DESKTOP_PARITY.md), and [release checklist](docs/RELEASE_CHECKLIST.md).

@@ -17,12 +17,18 @@ class FolderUnavailable : IllegalStateException("The selected folder is unavaila
 class DestinationExists : IllegalStateException("A file with this name already exists. Existing media was left unchanged.")
 interface MediaStorage {
     fun writable(uri: String?): Boolean
+    fun completed(id: java.util.UUID) {}
+    fun discard(id: java.util.UUID, uri: String): Boolean = false
     suspend fun publish(item: DownloadItem, media: StagedMedia, checkCancelled: () -> Unit): String
 }
 class SafMediaStorage(private val context: Context) : MediaStorage {
+    private val journal = PublicationJournal(context)
+    override fun completed(id: java.util.UUID) { journal.finished(id) }
+    override fun discard(id: java.util.UUID, uri: String) = journal.discard(id, uri)
     override fun writable(uri: String?) = uri != null && SafFolders.writable(context, uri)
     override suspend fun publish(item: DownloadItem, media: StagedMedia, checkCancelled: () -> Unit): String = withContext(Dispatchers.IO) {
         if (!writable(item.destinationUri)) throw FolderUnavailable()
+        check(journal.clearPending(item.id)) { "An earlier incomplete publication could not be removed. Restore folder access or remove it manually before retrying." }
         val cap = SizeBudget.bytes(if (item.kind == DownloadKind.AUDIO) item.settingsSnapshot.audioMaxSizeMb else item.settingsSnapshot.videoMaxSizeMb)
         require(SizeBudget.fits(media.file.length(), cap)) { "Final media exceeds the strict size cap; nothing was published." }
         val tree = DocumentFile.fromTreeUri(context, Uri.parse(item.destinationUri)) ?: throw FolderUnavailable()
@@ -32,8 +38,10 @@ class SafMediaStorage(private val context: Context) : MediaStorage {
         // SAF providers do not all offer atomic moves or exclusive rename. Use collision-safe
         // create + verified copy, and delete the newly-created document on every failure.
         val document = tree.createFile(media.mime, name) ?: throw FolderUnavailable()
+        var recorded = false
         try {
             if (document.name != name) throw DestinationExists()
+            journal.record(item.id, document.uri.toString()); recorded = true
             val sourceHash = MessageDigest.getInstance("SHA-256")
             context.contentResolver.openOutputStream(document.uri, "wt")?.use { output ->
                 media.file.inputStream().use { input ->
@@ -58,6 +66,7 @@ class SafMediaStorage(private val context: Context) : MediaStorage {
             checkCancelled(); document.uri.toString()
         } catch (t: Throwable) {
             if (!document.delete()) throw IllegalStateException("Saving failed and the incomplete document could not be removed. Remove it from the selected folder before retrying.", t)
+            if (recorded) journal.finished(item.id)
             throw t
         }
     }

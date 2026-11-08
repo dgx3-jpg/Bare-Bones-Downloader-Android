@@ -39,6 +39,52 @@ class QueueRepositoryTest {
             assertNull(repo.get(interrupted.id)?.reservationKey)
         } finally { scope.cancel(); db.close() }
     }
+    @Test fun namespacedReservationsRebuildAfterRestartWithoutChangingSnapshots() = runBlocking<Unit> {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val db = Room.inMemoryDatabaseBuilder(context, DownloadDatabase::class.java).build()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        try {
+            val repo=RoomDownloadRepository(db,scope)
+            repo.resolveSource={ url -> SourceReference(url,if(url.contains("soundcloud")) "soundcloud" else "tiktok","123") }
+            val settings=AppSettings(audioFolderUri="content://audio",audioMaxSizeMb=8)
+            repo.enqueue("https://www.tiktok.com/@creator/video/123",DownloadKind.AUDIO,settings)
+            repo.enqueue("https://soundcloud.com/artist/song",DownloadKind.AUDIO,settings)
+            assertTrue(runCatching { repo.enqueue("https://www.tiktok.com/@alias/video/123",DownloadKind.AUDIO,settings) }.exceptionOrNull() is DuplicateDownload)
+            val original=db.downloads().all().first()
+            db.downloads().update(original.copy(reservationKey=null))
+            repo.recover()
+            assertEquals("tiktok:123|AUDIO",repo.get(original.id)!!.reservationKey)
+            assertEquals(settings,repo.get(original.id)!!.settingsSnapshot)
+            repo.change(original.id) { it.copy(status=DownloadStatus.FAILED,reservationKey=null) }
+            repo.retry(original.id)
+            assertEquals("tiktok:123|AUDIO",repo.get(original.id)!!.reservationKey)
+        } finally { scope.cancel(); db.close() }
+    }
+    @Test fun cancellationWinningPublicationRaceCannotBeReportedCompleted() = runBlocking<Unit> {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val db = Room.inMemoryDatabaseBuilder(context, DownloadDatabase::class.java).build()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        val root=File(context.cacheDir,"publication-race").apply { mkdirs() }
+        try {
+            val repo=RoomDownloadRepository(db,scope)
+            repo.enqueue("https://youtu.be/BaW_jenozKc",DownloadKind.AUDIO,AppSettings(audioFolderUri="content://folder"))
+            val gateway=object: MediaGateway {
+                override fun cancel(item: DownloadItem) {}
+                override suspend fun download(item: DownloadItem,directory: File,progress: (MediaProgress)->Unit): StagedMedia {
+                    directory.mkdirs(); return StagedMedia(File(directory,"owned.m4a").apply { writeText("explicit scheduling fake") },"Owned","audio/mp4")
+                }
+            }
+            var discarded=false
+            val storage=object: MediaStorage {
+                override fun writable(uri: String?)=true
+                override suspend fun publish(item: DownloadItem,media: StagedMedia,checkCancelled: ()->Unit): String { repo.cancelCurrent(); return "content://new-owned" }
+                override fun discard(id: java.util.UUID,uri: String): Boolean { discarded=true; return true }
+            }
+            DownloadCoordinator(repo,gateway,storage,root,NativeRuntime(context),DownloadLog()).runQueue()
+            assertEquals(DownloadStatus.CANCELLED,db.downloads().all().single().status)
+            assertTrue(discarded); assertNull(db.downloads().all().single().outputUri)
+        } finally { scope.cancel(); db.close(); root.deleteRecursively() }
+    }
     @Test fun fifoIsSequentialFailureContinuesAndBlockedFolderPreservesOrder() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val db = Room.inMemoryDatabaseBuilder(context, DownloadDatabase::class.java).build()

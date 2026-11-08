@@ -27,6 +27,7 @@ class DownloadPolicyTest {
         assertTrue(FilenamePolicy.name(audio.copy(kind = DownloadKind.VIDEO), title, "mp4").contains("[BaW_jenozKc]"))
         assertTrue(FilenamePolicy.clean("界".repeat(100)).toByteArray().size <= 180)
         assertEquals("_CON", FilenamePolicy.clean("CON"))
+        assertEquals("_CON.txt", FilenamePolicy.clean("CON.txt"))
         assertFalse(sanitizeDiagnostic("Error https://secret.example/path?token=private failed").contains("private"))
     }
     @Test fun authenticationFailureDoesNotSuggestUnsupportedCookieImports() {

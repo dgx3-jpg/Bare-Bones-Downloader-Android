@@ -35,9 +35,17 @@ class DownloadCoordinator(private val repository: RoomDownloadRepository, privat
                     repository.change(item.id) { if (it.status in activeStatuses) it.copy(status = DownloadStatus.SAVING, progressPercent = 100) else it }
                     val uri = storage.publish(item, staged) { runtime.check(item.id) }
                     // Publication succeeded. Do not report completed before verification.
-                    repository.change(item.id) { it.copy(status = DownloadStatus.COMPLETED, reservationKey = null, outputUri = uri,
+                    try { runtime.check(item.id) } catch (e: CancellationException) {
+                        check(storage.discard(item.id, uri)) { "Cancelled publication requires manual cleanup in the selected folder." }; throw e
+                    }
+                    repository.change(item.id) { if (it.status != DownloadStatus.SAVING) it else it.copy(status = DownloadStatus.COMPLETED, reservationKey = null, outputUri = uri,
                         outputFilename = FilenamePolicy.name(item, staged.title, staged.file.extension), title = staged.title,
                         progressPercent = 100, completedAt = System.currentTimeMillis(), errorMessage = staged.warnings) }
+                    if (repository.get(item.id)?.status != DownloadStatus.COMPLETED) {
+                        check(storage.discard(item.id, uri)) { "Cancelled publication requires manual cleanup in the selected folder." }
+                        throw CancellationException("Cancelled during publication.")
+                    }
+                    storage.completed(item.id)
                     log.add("Completed ${item.kind.label} item ${item.mediaId}." + (staged.warnings?.let { " Warning: $it" } ?: ""))
                     work.deleteRecursively()
                 } catch (e: FolderUnavailable) {

@@ -6,3 +6,7 @@
 *.iml
 *.jks
 *.keystore
+
+baseline-apk/
+native-logcat.txt
+theme-*-scaled.png

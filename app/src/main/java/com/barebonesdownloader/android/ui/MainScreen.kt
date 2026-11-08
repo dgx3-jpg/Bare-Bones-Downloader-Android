@@ -20,7 +20,7 @@ import com.barebonesdownloader.android.domain.model.*
 
 @Composable fun MainScreen(url: String, editUrl: (String) -> Unit, kind: DownloadKind, selectKind: (DownloadKind) -> Unit,
     settings: AppSettings?, items: List<DownloadItem>, log: String, changeFolder: () -> Unit, add: () -> Unit,
-    cancel: () -> Unit, clear: () -> Unit, resume: () -> Unit, retry: (DownloadItem) -> Unit, replace: (DownloadItem) -> Unit, copyLog: () -> Unit) {
+    cancel: () -> Unit, clear: () -> Unit, resume: () -> Unit, retry: (DownloadItem) -> Unit, replace: (DownloadItem) -> Unit, copyLog: () -> Unit, queueing: Boolean = false) {
     val context = LocalContext.current
     var expanded by rememberSaveable { mutableStateOf(true) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp).testTag("main_scroll"),
@@ -46,8 +46,8 @@ import com.barebonesdownloader.android.domain.model.*
             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
             clipboard.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(context)?.let { editUrl(it.toString()) }
         }) { Text("Paste links") }
-        Button(onClick = add, enabled = settings != null, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("queue_button")) {
-            Text(if (kind == DownloadKind.AUDIO) "Queue audio" else "Queue video")
+        Button(onClick = add, enabled = settings != null && !queueing, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("queue_button")) {
+            Text(if (queueing) "Checking links…" else if (kind == DownloadKind.AUDIO) "Queue audio" else "Queue video")
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = cancel, enabled = items.any { it.status in activeStatuses || it.status == DownloadStatus.BLOCKED }, modifier = Modifier.weight(1f)) { Text("Cancel current") }

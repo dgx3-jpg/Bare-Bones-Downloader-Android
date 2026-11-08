@@ -8,8 +8,13 @@ on:
         description: 'Run opt-in public YouTube audio/video + SAF integration'
         type: boolean
         default: false
+      tiktok:
+        description: 'Opt-in TikTok public fixture verification (may be site-restricted)'
+        type: boolean
+        default: false
 permissions:
   contents: read
+  actions: read
 concurrency:
   group: android-${{ github.ref }}
   cancel-in-progress: true
@@ -33,6 +38,10 @@ jobs:
         with:
           path: ~/.android/debug.keystore
           key: bare-bones-android-debug-signing-v1
+      - name: Enforce update-compatible debug signing
+        env:
+          BBD_DEBUG_KEYSTORE_BASE64: ${{ secrets.BBD_DEBUG_KEYSTORE_BASE64 }}
+        run: python3 tools/verify-signing.py
       - name: Install pinned Android SDK packages
         uses: android-actions/setup-android@v4
         with:
@@ -71,6 +80,23 @@ jobs:
           cmdline-tools-version: '13114758'
           packages: 'platform-tools platforms;android-36 build-tools;35.0.0'
           log-accepted-android-sdk-licenses: false
+      - name: Restore the established debug signing key
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: bare-bones-android-debug-signing-v1
+      - name: Enforce update-compatible debug signing
+        env:
+          BBD_DEBUG_KEYSTORE_BASE64: ${{ secrets.BBD_DEBUG_KEYSTORE_BASE64 }}
+        run: python3 tools/verify-signing.py
+      - name: Fetch previous same-package APK for in-place update verification
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: '42501942123'
+          name: app-debug-apk
+          path: baseline-apk
       - name: Allow runner access to KVM
         run: sudo setfacl -m u:$(id -un):rw /dev/kvm
       - name: Native runtime, process cancellation and real audio/video integration
@@ -81,7 +107,7 @@ jobs:
           target: default
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader -noaudio -no-boot-anim -no-snapshot -memory 2048
-          script: bash tools/run-native-tests.sh '${{ inputs.live }}'
+          script: bash tools/run-native-tests.sh '${{ inputs.live }}' '${{ inputs.tiktok }}'
       - name: Publish native verification evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -91,3 +117,4 @@ jobs:
             app/build/reports/androidTests/
             app/build/outputs/androidTest-results/
             native-logcat.txt
+            theme-*-scaled.png

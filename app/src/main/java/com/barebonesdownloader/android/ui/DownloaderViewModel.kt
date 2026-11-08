@@ -19,6 +19,7 @@ class DownloaderViewModel(private val preferences: SettingsRepository, private v
         .catch { note("Could not load preferences. Please restart."); emit(null) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
     val items = downloads.items
+    val queueing = MutableStateFlow(false)
     val url = MutableStateFlow("")
     val kind = MutableStateFlow(DownloadKind.AUDIO)
     val draft = MutableStateFlow<AppSettings?>(null)
@@ -42,26 +43,36 @@ class DownloaderViewModel(private val preferences: SettingsRepository, private v
             if (blocked != null) { downloads.replaceDestination(type, blocked.destinationUri, uri); start() }
         }
     }
+    fun prefillShare(text: String) {
+        val clean = text.take(60000).trim()
+        if (clean.isNotEmpty()) url.value = if (url.value.isBlank()) clean else url.value.trimEnd() + "\n" + clean
+    }
     fun add(start: () -> Unit = {}): Boolean {
+        if (queueing.value) return false
         val snapshot = settings.value ?: return false
         val type = kind.value
-        val tokens = url.value.trim().split(Regex("\\s+")).filter(String::isNotBlank)
-        val parsed = tokens.map { raw -> raw to runCatching { YoutubeSource.parse(raw) }.getOrNull() }
+        val capturedInput = url.value
+        val tokens = capturedInput.trim().split(Regex("\\s+")).filter(String::isNotBlank)
+        val parsed = tokens.map { raw -> raw to runCatching { SourceUrls.normalize(raw) }.getOrNull() }
         if (parsed.none { it.second != null }) {
-            message.value = "Paste valid YouTube watch, Shorts or youtu.be single-video links."
-            note("Rejected input: no supported single-video YouTube links."); return false
+            message.value = "Paste public single-media links. YouTube watch, Shorts and youtu.be links are supported."
+            note("Rejected input: no public single-media links."); return false
         }
         if (snapshot.folder(type) == null) return true
+        queueing.value = true
         work {
+          try {
             val rejected = mutableListOf<String>(); var count = 0
             parsed.forEach { (raw, source) ->
                 if (source == null) { rejected += raw; note("Rejected an unsupported or malformed link.") }
-                else try { downloads.enqueue(source.url, type, snapshot); count++ }
-                catch (e: IllegalArgumentException) { rejected += raw; note(e.message ?: "Could not queue this item.") }
+                else try { downloads.enqueue(source, type, snapshot); count++ }
+                catch (e: CancellationException) { throw e }
+                catch (e: Exception) { rejected += raw; note(describeDownloadFailure(e).message) }
             }
-            url.value = rejected.joinToString("\n")
+            if (url.value == capturedInput) url.value = rejected.joinToString("\n")
             if (count > 0) { note("Queued $count ${type.label} item(s)."); start() }
             if (rejected.isNotEmpty()) message.value = "Some links were rejected or already queued; they remain in the input."
+          } finally { queueing.value = false }
         }
         return false
     }
