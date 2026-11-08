@@ -39,12 +39,18 @@ The local init script only forwards proxy properties and sets test heap size to 
 | Room schema/entity/type/destination/complete settings round-trip | 1 Robolectric API 35 test passed |
 | Mode/input/picker-prompt cancellation, five settings sections, Save/Cancel/theme persistence, metadata preview toggles | 3 Robolectric API 35 UI tests passed |
 | `assembleDebug` | Passed: `app/build/outputs/apk/debug/app-debug.apk` |
+| APK identity/signature | `aapt dump badging app/build/outputs/apk/debug/app-debug.apk` verified ID/label/version/minSdk 29/target 36; `apksigner verify --verbose` passed with APK Signature Scheme v2 |
 | `assembleDebugAndroidTest` | Passed: instrumentation smoke test compiled; not executed on device |
-| `lintDebug` | Passed; no errors. Warnings are recorded in the generated lint report. |
+| `lintDebug` | Passed: 0 errors, 20 warnings (mostly dependency updates; also KAPT, backup rules, icon/resource recommendations and a KTX suggestion). |
 
 The first revised shell build also passed. One test initially targeted an off-screen Appearance tab without scrolling; the test was corrected and the full suite passed. No assertion was removed. Local reports: `app/build/test-results/testDebugUnitTest/`, `app/build/reports/tests/testDebugUnitTest/`, `app/build/reports/lint-results-debug.html`.
 
-GitHub Actions run/artifact verification: pending first push of this workflow; no remote run is claimed yet.
+**GitHub Actions verified:** [run 42476569402, attempt 2](https://github.com/dgx3-jpg/Bare-Bones-Downloader-Android/actions/runs/42476569402/attempts/2) completed successfully for code/workflow commit `fc584718f5c729ca6c8e018be9132e7b660bc813`. Hosted Ubuntu runner, Temurin JDK 17.0.21; `./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug` → **BUILD SUCCESSFUL in 4m 36s**.
+
+- [Download app-debug-apk](https://github.com/dgx3-jpg/Bare-Bones-Downloader-Android/actions/runs/42476569402/artifacts/13615906765): confirmed uploaded, 11,466,165-byte ZIP containing `app-debug.apk`.
+- [Verification reports](https://github.com/dgx3-jpg/Bare-Bones-Downloader-Android/actions/runs/42476569402/artifacts/13616125834): confirmed uploaded.
+- The initial workflow exposed missing `sdkmanager` on PATH; explicit pinned Android SDK provisioning fixed it. The next attempt encountered a compiler dependency download timeout; one failed-job retry succeeded without source changes. Debug signing cache post-step succeeded.
+- This evidence update changes documentation only; it does not alter the verified app or workflow.
 
 ## Limits and remaining work
 
