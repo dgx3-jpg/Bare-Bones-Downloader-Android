@@ -1,14 +1,16 @@
-# Signing repair in progress — 0.6.1 / code 9
+# Signing repair — 0.6.1 / code 9
 
 The owner instructed the assistant to fix the remaining problems. A new permanent signing identity and private backup have been created. Its public SHA-256 is `80bd2bc24c4cf2e4710089a66bbb4eeba6323f840b913349936f729887696091`. Older CI APKs need one clean install because their private keys are lost; no data on the owner's device has been removed.
 
-Release signing now happens offline with source binding and public hash receipts. CI verifies signed APK assets and can test/publish them without access to the private key. All permanent-key caches are removed; source/PR checks use non-published temporary keys. Optional Actions-secret signing remains supported for owners with administrative access. Final signed assets and actual permanent-key upgrade verification are being prepared.
+Release signing now happens offline with source binding and public hash receipts. CI verifies signed APK assets and can test/publish them without access to the private key. All permanent-key caches are removed; source/PR checks use non-published temporary keys. Optional Actions-secret signing remains supported for owners with administrative access. The signed 0.6.1 APK was built and verified locally from `d048cda5222e36dbd3ec71b6ef5726387ff4490f`; 36 host tests, lint and assembly passed. APK SHA-256: `9e208180e082bc527277124e06c982e9c05c7866deaa893ed34e80fab528b1ff`. Direct workspace delivery is available. The GitHub release upload returned HTTP 400; the empty candidate release was removed. Permanent-key device upgrade verification remains unexecuted because these signed assets could not be uploaded. CI is independently testing the same update fixture using temporary same-certificate APKs in run 42520915025. No temporary-key installable APK is published.
 
 Latest official yt-dlp release was rechecked on 2026-11-08: **2026.10.26**, already pinned. No newer official extractor fix is available to address the recorded YouTube sign-in/TikTok IP restrictions. These site-side restrictions are not reported as repaired or bypassed.
 
 ---
 
-## Prior milestone implementation and verification record
+## Historical milestone implementation and verification record
+
+The following records describe the earlier 0.6.0 candidate and its then-current signing blocker. The signing-repair section above supersedes key-approval and delivery statements below.
 
 Requested scope includes **all milestones 1–6** of design v2. **M4 and M5 are complete and verified. M6 code and independent Android checks are verified; its final APK publication and in-place update check are blocked by the missing prior CI signing key.** Candidate **0.6.0 / code 8**, package `com.barebonesdownloader.android`. The owner signing decision remains pending; no new permanent identity has been approved or published. This is not a full live-site/physical-device parity claim.
 
@@ -41,7 +43,7 @@ Local toolchain: OpenJDK21.0.13, SDK36, Build Tools35.0.0, Gradle8.13, AGP8.13.2
 - Live Apple catalogue success is not independently verified; selection/confidence logic and actual known-tag round-trips are tested. Missing/ambiguous fields stay unknown.
 - No physical phone, ARM runtime, 16 KB page-size device or OEM battery-policy verification is claimed. Native evidence is Android 10/API29 x86_64. Accessibility beyond recorded scaled-theme checks remains manual.
 - SAF has no universal atomic/exclusive publication. Handled failures remove new documents; the journal supports process-death cleanup. Lost grants/delete refusal and the small provider-create/journal-commit transaction gap can require manual folder cleanup.
-- Established certificate is pinned and CI refuses a missing/different key. An optional private Actions secret supports restoring the existing key; no durable backup is asserted configured. Cache loss requires owner restoration. No private key is committed or put in artifacts.
+- The replacement permanent certificate is pinned. Its private backup is delivered separately to the owner; the owner must retain it outside this session. Older lost-key APKs require one clean install. CI temporary keys are restricted to verification; offline release assets require certificate/hash/source verification. No private key is committed, cached, or put in GitHub artifacts.
 - GPL corresponding-source/combined-license duties apply before wider redistribution. This remains the owner's private personal-use build.
 
 [Native provenance](docs/NATIVE_RUNTIME.md), [parity map](docs/DESKTOP_PARITY.md), [release/update checklist](docs/RELEASE_CHECKLIST.md), [Actions artifacts](https://github.com/dgx3-jpg/Bare-Bones-Downloader-Android/actions/workflows/android.yml).
