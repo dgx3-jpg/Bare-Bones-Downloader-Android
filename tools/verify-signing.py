@@ -2,7 +2,13 @@
 """Restore an optional Actions secret, then enforce the established public certificate."""
 import base64, hashlib, os, pathlib, subprocess, sys
 expected = 'fe2db971ead2186305b3fcac03c4b72aee0e535e310a5cebed82d2be578f646b'
-key = pathlib.Path.home() / '.android' / 'debug.keystore'
+key = pathlib.Path(os.environ.get('BBD_DEBUG_KEYSTORE_PATH',str(pathlib.Path.home() / '.android' / 'debug.keystore')))
+if os.environ.get('BBD_VERIFY_ONLY') == 'true':
+    key.parent.mkdir(parents=True,exist_ok=True)
+    if not key.exists():
+        subprocess.run(['keytool','-genkeypair','-keystore',str(key),'-storepass','android','-keypass','android','-alias','androiddebugkey','-dname','CN=Verification Only,O=Private Test,C=US','-keyalg','RSA','-keysize','2048','-validity','7'],check=True,capture_output=True)
+    print('VERIFICATION ONLY: isolated temporary key. No APK publication or update continuity claim.')
+    sys.exit(0)
 encoded = os.environ.get('BBD_DEBUG_KEYSTORE_BASE64', '')
 if encoded:
     key.parent.mkdir(parents=True, exist_ok=True)

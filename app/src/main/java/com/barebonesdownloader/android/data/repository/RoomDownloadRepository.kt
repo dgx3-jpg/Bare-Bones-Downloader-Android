@@ -38,7 +38,12 @@ class RoomDownloadRepository(val db: DownloadDatabase, scope: CoroutineScope) : 
             val key = runCatching { "${SourceUrls.identity(item)}|${item.kind.name}" }.getOrNull()
             if (key == null || !seen.add(key)) dao.update(item.copy(status = DownloadStatus.SKIPPED, reservationKey = null,
                 errorCode = "DUPLICATE_RECOVERY", errorMessage = "Invalid or duplicate waiting item recovered; no media was downloaded."))
-            else dao.update(item.copy(reservationKey = key))
+            else {
+                val legacy = if (item.extractorKey.isNullOrBlank() || item.mediaId.isNullOrBlank()) runCatching { SourceUrls.youtube(item.sourceUrl) }.getOrNull() else null
+                dao.update(item.copy(reservationKey = key, sourceUrl = legacy?.url ?: item.sourceUrl,
+                    extractorKey = legacy?.extractor ?: item.extractorKey, mediaId = legacy?.id ?: item.mediaId,
+                    sourceHost = legacy?.host ?: item.sourceHost))
+            }
         }
     }
     override suspend fun cancelCurrent() {

@@ -28,6 +28,11 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+    providers.environmentVariable("BBD_DEBUG_KEYSTORE_PATH").orNull?.let { path ->
+        signingConfigs.getByName("debug") {
+            storeFile = file(path); storePassword = "android"; keyAlias = "androiddebugkey"; keyPassword = "android"
+        }
+    }
     buildTypes { release { isMinifyEnabled = false } }
     testOptions { unitTests.isIncludeAndroidResources = true }
     packaging {

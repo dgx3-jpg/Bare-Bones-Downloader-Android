@@ -34,3 +34,9 @@ Local toolchain: OpenJDK21.0.13, SDK36, Build Tools35.0.0, Gradle8.13, AGP8.13.2
 - GPL corresponding-source/combined-license duties apply before wider redistribution. This remains the owner's private personal-use build.
 
 [Native provenance](docs/NATIVE_RUNTIME.md), [parity map](docs/DESKTOP_PARITY.md), [release/update checklist](docs/RELEASE_CHECKLIST.md), [Actions artifacts](https://github.com/dgx3-jpg/Bare-Bones-Downloader-Android/actions/workflows/android.yml).
+
+## Signing blocker found during final M6 verification
+
+Run [42505873785](https://github.com/dgx3-jpg/Bare-Bones-Downloader-Android/actions/runs/42505873785) stopped before building because the established signing key was absent. Inspection confirmed zero matching caches; earlier build logs reported “Path(s) specified ... do(es) not exist”, so the legacy cache never retained the key. The old APK alone cannot recover its private signing key. The owner has been asked to restore a private backup through the Actions secret, or explicitly accept a new stable identity and clean install. No incompatible APK was published.
+
+Signing now uses an explicit `BBD_DEBUG_KEYSTORE_PATH` shared by Gradle, the guard and cache. A separate `verification_only` workflow can run all independent tests with an isolated seven-day key; it skips APK publication, stable-key caching and the in-place update test. This does not resolve the old-key continuity blocker or assert a new stable key was approved.

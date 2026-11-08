@@ -8,7 +8,7 @@ The established CI debug certificate SHA-256 is:
 
 `fe2db971ead2186305b3fcac03c4b72aee0e535e310a5cebed82d2be578f646b`
 
-CI restores the existing `bare-bones-android-debug-signing-v1` cache and verifies the certificate before building. A missing/different key fails the build; CI never silently generates an incompatible replacement. Native tests use the same identity. No private key is committed or uploaded in artifacts.
+CI uses the explicit `BBD_DEBUG_KEYSTORE_PATH` in both Gradle and cache (`bare-bones-android-debug-signing-v2`) and verifies the certificate before building. The legacy v1 cache path did not exist and no key was saved; earlier key continuity must not be assumed. A missing/different key fails the build; CI never silently generates an incompatible replacement. Native tests use the same identity. No private key is committed or uploaded in artifacts.
 
 For durable recovery, the repository owner should retain a **private backup of that existing key**, and configure repository Actions secret `BBD_DEBUG_KEYSTORE_BASE64` containing its base64 bytes. The optional secret takes precedence over the cache; its certificate must match the pinned public fingerprint. The standard debug alias/password are `androiddebugkey` / `android`. Do not put the key, its base64 text or a release password in an issue/chat/commit. No durable secret backup is asserted configured by this task; cache eviction therefore still requires restoration of the existing key before another CI APK can be published.
 
@@ -32,3 +32,5 @@ Local SDK debug keys generally differ from CI. To update an installed CI APK loc
 - Provider-specific behavior (cloud/offline/removable storage, revoked permissions, manual cleanup when delete is denied). SAF cannot guarantee atomic publication across every provider. A hard process kill between provider creation and journal commit is a small unavoidable cross-store transaction gap; inspect the folder if interrupted at that point.
 - Accessible user-authorized live examples for each intended website; authoritative metadata and catalogue matches. Generated fixtures verify processing, not live site access or every music credit.
 - Durable private signing backup, current GPL notices, complete corresponding-source/build bundle and compatible licensing before wider redistribution.
+
+The `verification_only` manual workflow uses an isolated temporary key, never caches it as the stable identity and never publishes its APK. Its update test explicitly skips. Independent native test results can be recorded while private signing recovery is pending.

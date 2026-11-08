@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Real same-certificate APK update on the connected owned emulator."""
-import pathlib, subprocess, sys
+import pathlib, subprocess, sys, os
+if os.environ.get("BBD_VERIFY_ONLY") == "true":
+    print("UPDATE CHECK SKIPPED: verification-only key; established signing key unavailable.")
+    sys.exit(0)
 baseline=pathlib.Path('baseline-apk/app-debug.apk')
 if not baseline.is_file():
     print('UPDATE CHECK SKIPPED: baseline artifact unavailable; see release checklist.')
