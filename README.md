@@ -6,6 +6,8 @@ Audio and video downloads use a single persistent FIFO queue, independent SAF de
 
 **Verification limits:** live YouTube extraction was blocked by a sign-in/verification request even with the updated extractor. Other sites can also restrict extraction. No login, cookie imports, DRM circumvention, live recording or playlist batches are implemented. See [actual results and APK links](IMPLEMENTATION_STATUS.md); no full device/site parity is claimed from fixture tests.
 
+**Final APK release blocker:** my earlier CI signing-cache configuration pointed at a path the build did not use, so the old private key was not retained. The final workflow currently runs in verification-only mode and publishes no APK. Publishing an update requires the existing key restored from a private backup, or explicit acceptance of a new stable identity and a clean install. See [signing evidence and the pending decision](IMPLEMENTATION_STATUS.md).
+
 ## Download / install
 
 [GitHub Actions](https://github.com/dgx3-jpg/Bare-Bones-Downloader-Android/actions/workflows/android.yml) publishes `app-debug-apk` and verification reports. Download the artifact ZIP, extract `app-debug.apk`, and install it. Allow installation from your browser/file manager when Android requests it. The universal APK contains four ABIs and is about 225 MB. No Windows tools or FFmpegKit are used.

@@ -34,3 +34,5 @@ Local SDK debug keys generally differ from CI. To update an installed CI APK loc
 - Durable private signing backup, current GPL notices, complete corresponding-source/build bundle and compatible licensing before wider redistribution.
 
 The `verification_only` manual workflow uses an isolated temporary key, never caches it as the stable identity and never publishes its APK. Its update test explicitly skips. Independent native test results can be recorded while private signing recovery is pending.
+
+The connected GitHub integration cannot administer Actions secrets (the public-key endpoint returned HTTP 403). If restoring an existing private backup, the owner must configure it in [repository Actions secrets](https://github.com/dgx3-jpg/Bare-Bones-Downloader-Android/settings/secrets/actions). Never send private key contents in chat.

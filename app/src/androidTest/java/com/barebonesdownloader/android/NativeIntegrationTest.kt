@@ -169,8 +169,13 @@ class NativeIntegrationTest {
         val completed = tree.createFile("application/octet-stream","owned-completed-$completedId.bin")!!
         app.database.downloads().insert(DownloadItem(id=completedId,sourceUrl="owned",status=DownloadStatus.COMPLETED,outputUri=completed.uri.toString()))
         journal.record(completedId,completed.uri.toString())
+        val records=File(app.noBackupFilesDir,"pending-publications")
+        Log.i("BBD_INTEGRATION","JOURNAL records: ${records.listFiles().orEmpty().joinToString { it.name }}")
+        assertTrue("Pending publication marker missing",File(records,"$interruptedId.uri").isFile)
+        Log.i("BBD_INTEGRATION","JOURNAL before: tree=${interrupted.exists()} single=${DocumentFile.fromSingleUri(app,interrupted.uri)?.exists()} uri=${interrupted.uri}")
         journal.recover(app.downloads,app.diagnostics)
-        assertFalse(interrupted.exists()); assertTrue(completed.exists())
+        app.diagnostics.text.value.lineSequence().filter { it.contains("publication") || it.contains("Recovery warning") }.take(10).forEach { Log.i("BBD_INTEGRATION",it) }
+        assertFalse(app.diagnostics.text.value,interrupted.exists()); assertTrue(completed.exists())
         completed.delete()
     }
     @Test fun iOwnedHttpFixtureCompletesBothModesWhileScreenOff() = runBlocking<Unit> {
@@ -248,9 +253,11 @@ class NativeIntegrationTest {
                 delay(500); ui.waitForIdle()
                 ui.onNodeWithTag("links_input").performScrollTo().assertIsDisplayed()
                 ui.onNodeWithTag("queue_button").performScrollTo().assertIsDisplayed()
-                val screenshot="/sdcard/Download/BBD-native-test-theme-${theme.name.lowercase()}-scaled.png"
-                device.executeShellCommand("screencap -p $screenshot")
-                assertTrue(device.executeShellCommand("stat -c %s $screenshot").trim().toLong() > 1000)
+                val name="BBD-native-test-theme-${theme.name.lowercase()}-scaled.png"
+                val screenshot=File(app.cacheDir,name)
+                assertTrue(device.takeScreenshot(screenshot))
+                assertTrue(screenshot.length() > 1000)
+                Log.i("BBD_INTEGRATION","CAPTURED scaled $theme screenshot (${screenshot.length()} bytes).")
             }
         } finally { device.executeShellCommand("settings put system font_scale 1.0") }
     }

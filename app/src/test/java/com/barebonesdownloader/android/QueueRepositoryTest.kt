@@ -90,6 +90,30 @@ class QueueRepositoryTest {
             assertTrue(discarded); assertNull(db.downloads().all().single().outputUri)
         } finally { scope.cancel(); db.close(); root.deleteRecursively() }
     }
+    @Test fun journalRecoversOnlyUncommittedRecords() = runBlocking<Unit> {
+        val context=ApplicationProvider.getApplicationContext<android.content.Context>()
+        val db=Room.inMemoryDatabaseBuilder(context,DownloadDatabase::class.java).build()
+        val scope=CoroutineScope(SupervisorJob()+Dispatchers.IO)
+        try {
+            val repo=RoomDownloadRepository(db,scope); val deleted=mutableListOf<String>(); val journal=PublicationJournal(context) { deleted+=it.toString(); true }; val log=DownloadLog()
+            val pending=java.util.UUID.randomUUID(); val complete=java.util.UUID.randomUUID()
+            journal.record(pending,"content://fixture/pending")
+            journal.record(complete,"content://fixture/completed")
+            db.downloads().insert(DownloadItem(id=complete,sourceUrl="fixture",status=DownloadStatus.COMPLETED,outputUri="content://fixture/completed"))
+            val root=File(context.noBackupFilesDir,"pending-publications")
+            assertTrue(File(root,"$pending.uri").exists())
+            journal.recover(repo,log)
+            assertFalse(log.text.value,File(root,"$pending.uri").exists())
+            assertFalse(log.text.value,File(root,"$complete.uri").exists())
+            assertEquals(listOf("content://fixture/pending"),deleted)
+            assertEquals(DownloadStatus.COMPLETED,repo.get(complete)!!.status)
+            val denied=java.util.UUID.randomUUID()
+            journal.record(denied,"content://fixture/denied")
+            PublicationJournal(context) { false }.recover(repo,log)
+            assertTrue(File(root,"$denied.uri").exists())
+            journal.finished(denied)
+        } finally { scope.cancel(); db.close() }
+    }
     @Test fun fifoIsSequentialFailureContinuesAndBlockedFolderPreservesOrder() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val db = Room.inMemoryDatabaseBuilder(context, DownloadDatabase::class.java).build()

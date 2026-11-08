@@ -130,5 +130,7 @@ jobs:
           path: |
             app/build/reports/androidTests/
             app/build/outputs/androidTest-results/
+            app/build/outputs/native-test-results/
+            native-runner.log
             native-logcat.txt
             theme-*-scaled.png
