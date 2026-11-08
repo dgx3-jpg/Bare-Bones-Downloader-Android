@@ -63,3 +63,9 @@ Desktop reference mapping and test limits: [docs/DESKTOP_PARITY.md](docs/DESKTOP
 ## Next action
 
 Stop after M1. On the user's next instruction, M2 is real YouTube audio AND H.264/AAC video extraction, FIFO/duplicate reservations, separate SAF destinations, staged saving/cancellation and foreground service; verify actual audio/video before moving on.
+
+## Milestone 2 implementation candidate — verification in progress
+
+The current source now replaces demo production data with a Room-backed queue, strict canonical YouTube parser, per-type duplicate reservations, enqueue snapshots, FIFO foreground service/notification, cancellation, interrupted recovery, explicit retries/resume, real yt-dlp/FFmpeg/ffprobe gateway, private staging, stream-copy audio and compatible H.264/AAC video, safe names and verified SAF copy. Matching blocked destinations can be replaced without changing unrelated jobs. Metadata/ReplayGain remain warnings; type-specific size caps fail explicitly until M4; additional encoders remain M3.
+
+Pinned native integration and license obligations: docs/NATIVE_RUNTIME.md. Local emulator startup was attempted and blocked by absent KVM and insufficient free disk for its required configuration; the unused image was removed. A GitHub-hosted Android emulator workflow and real native/SAF/live tests are being prepared. No real download/device success is claimed yet. M2 acceptance gate is still pending; M3 is not started.

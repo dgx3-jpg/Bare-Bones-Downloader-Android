@@ -20,7 +20,7 @@ import com.barebonesdownloader.android.domain.model.*
 
 @Composable fun MainScreen(url: String, editUrl: (String) -> Unit, kind: DownloadKind, selectKind: (DownloadKind) -> Unit,
     settings: AppSettings?, items: List<DownloadItem>, log: String, changeFolder: () -> Unit, add: () -> Unit,
-    cancel: () -> Unit, clear: () -> Unit, copyLog: () -> Unit) {
+    cancel: () -> Unit, clear: () -> Unit, resume: () -> Unit, retry: (DownloadItem) -> Unit, replace: (DownloadItem) -> Unit, copyLog: () -> Unit) {
     val context = LocalContext.current
     var expanded by rememberSaveable { mutableStateOf(true) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp).testTag("main_scroll"),
@@ -50,9 +50,10 @@ import com.barebonesdownloader.android.domain.model.*
             Text(if (kind == DownloadKind.AUDIO) "Queue audio" else "Queue video")
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = cancel, enabled = items.any { it.status in activeStatuses }, modifier = Modifier.weight(1f)) { Text("Cancel current") }
+            OutlinedButton(onClick = cancel, enabled = items.any { it.status in activeStatuses || it.status == DownloadStatus.BLOCKED }, modifier = Modifier.weight(1f)) { Text("Cancel current") }
             OutlinedButton(onClick = clear, enabled = items.any { it.status == DownloadStatus.QUEUED }, modifier = Modifier.weight(1f)) { Text("Clear waiting") }
         }
+        if (items.any { it.status == DownloadStatus.QUEUED } && items.none { it.status in activeStatuses }) OutlinedButton(onClick = resume) { Text("Resume queue") }
         Text("Queue", style = MaterialTheme.typography.titleMedium)
         if (items.isEmpty()) Text("No downloads queued")
         items.forEach { item ->
@@ -62,6 +63,9 @@ import com.barebonesdownloader.android.domain.model.*
                     Text(item.sourceUrl, style = MaterialTheme.typography.bodySmall)
                     Text("Type: ${item.kind.label}")
                     Text("Status: ${item.status.label}", Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+                    item.errorMessage?.let { Text(it) }
+                    if (item.status in setOf(DownloadStatus.FAILED, DownloadStatus.INTERRUPTED, DownloadStatus.CANCELLED)) TextButton(onClick = { retry(item) }) { Text("Retry") }
+                    if (item.status == DownloadStatus.BLOCKED) TextButton(onClick = { replace(item) }) { Text("Choose replacement…") }
                     item.progressPercent?.let { LinearProgressIndicator(progress = { it / 100f }, modifier = Modifier.fillMaxWidth()) }
                 }
             }

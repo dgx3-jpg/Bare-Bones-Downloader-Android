@@ -1,6 +1,6 @@
 # Bare Bones Downloader for Android
 
-Standalone native Android shell following [design v2](ANDROID_DOWNLOADER_SPEC.md), using the [Windows app](https://github.com/dgx3-jpg/BareBonesDownloader) as its behavioral/visual reference. **Milestone 1 only:** queue/progress/log activity is illustrative; no extraction, audio/video processing or file publication is implemented.
+Standalone native Android shell following [design v2](ANDROID_DOWNLOADER_SPEC.md), using the [Windows app](https://github.com/dgx3-jpg/BareBonesDownloader) as its behavioral/visual reference. **Current source: milestone 2 implementation candidate.** Production code uses the real native gateway and Room-backed foreground queue. Real Android/live verification is in progress; milestone 2 is not yet declared accepted. See IMPLEMENTATION_STATUS.md. Historical M1 shell details below describe the preceding release.
 
 ## Build and install
 

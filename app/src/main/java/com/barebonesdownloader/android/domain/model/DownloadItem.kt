@@ -2,6 +2,8 @@ package com.barebonesdownloader.android.domain.model
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import androidx.room.Index
+import androidx.room.ColumnInfo
 import java.util.UUID
 
 enum class DownloadStatus(val label: String) {
@@ -12,10 +14,12 @@ enum class DownloadStatus(val label: String) {
 val activeStatuses = setOf(DownloadStatus.INSPECTING, DownloadStatus.DOWNLOADING, DownloadStatus.PROCESSING, DownloadStatus.TAGGING, DownloadStatus.SAVING)
 val historyStatuses = setOf(DownloadStatus.COMPLETED, DownloadStatus.FAILED, DownloadStatus.CANCELLED)
 
-@Entity(tableName = "downloads")
+@Entity(tableName = "downloads", indices = [Index(value = ["reservationKey"], unique = true)])
 data class DownloadItem(
     @PrimaryKey val id: UUID = UUID.randomUUID(),
     val sourceUrl: String,
+    @ColumnInfo(defaultValue = "0") val queueOrder: Long = 0,
+    val reservationKey: String? = null,
     val sourceHost: String? = null,
     val extractorKey: String? = null,
     val mediaId: String? = null,

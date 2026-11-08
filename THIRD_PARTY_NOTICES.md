@@ -21,3 +21,7 @@ Runtime dependencies (including their AndroidX/Kotlin transitive modules):
 Build/test tools are not app runtime features: Gradle 8.13 and Android Gradle Plugin 8.13.2 (Apache-2.0), JUnit 4.13.2 (EPL-1.0), Robolectric 4.16.1 (MIT), AndroidX Test (Apache-2.0), kotlinx.coroutines-test 1.10.2 (Apache-2.0). Upstream artifacts retain their notices. The Gradle wrapper is generated from the official Gradle distribution.
 
 The Apache-2.0 license is included in `app/src/main/res/raw/apache_license.txt` and can be viewed in Settings → Open-source licenses. Dependency sources and detailed license metadata are available from [AndroidX](https://android.googlesource.com/platform/frameworks/support/), [Kotlin](https://github.com/JetBrains/kotlin), [kotlinx.coroutines](https://github.com/Kotlin/kotlinx.coroutines), and [kotlinx.serialization](https://github.com/Kotlin/kotlinx.serialization). No project-wide license grant is inferred for your original code.
+
+## Milestone 2 native integration
+
+The prior “no native engine bundled” statement applies to the historical milestone-1 build only. Version 0.2.0 adds `io.github.junkfood02.youtubedl-android:library:0.18.1` and `:ffmpeg:0.18.1` (GPL-3.0), with Python, QuickJS, FFmpeg and codec dependencies. See [native provenance, licenses, source/build references and tested ABI limits](docs/NATIVE_RUNTIME.md). The GPL text is bundled and shown in the app. Broader redistribution is subject to corresponding-source and combined-work licensing obligations; private personal use is the current scope.

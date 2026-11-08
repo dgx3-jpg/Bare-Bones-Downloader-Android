@@ -21,14 +21,14 @@ class UiShellTest {
         ui.waitForIdle()
     }
     @Test fun modeSwitchPreservesInputAndRelevantFolderPrompt() {
-        ui.onNodeWithTag("links_input").performScrollTo().performTextInput("https://example.org/video")
+        ui.onNodeWithTag("links_input").performScrollTo().performTextInput("https://youtu.be/BaW_jenozKc")
         ui.onNodeWithTag("mode_VIDEO").performScrollTo().performClick()
         ui.onNodeWithText("Video folder").assertExists()
-        ui.onNodeWithTag("links_input").assertTextContains("https://example.org/video")
+        ui.onNodeWithTag("links_input").assertTextContains("https://youtu.be/BaW_jenozKc")
         ui.onNodeWithTag("queue_button").performScrollTo().performClick()
         ui.onNodeWithText("Choose video folder").assertIsDisplayed()
         ui.onNodeWithText("Cancel").performClick()
-        ui.onNodeWithTag("links_input").assertTextContains("https://example.org/video")
+        ui.onNodeWithTag("links_input").assertTextContains("https://youtu.be/BaW_jenozKc")
         ui.onNodeWithTag("mode_AUDIO").performScrollTo().performClick()
         ui.onNodeWithText("Queue audio").assertExists()
     }

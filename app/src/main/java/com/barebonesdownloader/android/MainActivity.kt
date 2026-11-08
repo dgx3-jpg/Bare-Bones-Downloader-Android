@@ -22,7 +22,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val model: DownloaderViewModel = viewModel(factory = object : ViewModelProvider.Factory {
                     @Suppress("UNCHECKED_CAST")
-                    override fun <T : ViewModel> create(modelClass: Class<T>): T = DownloaderViewModel(app.settings, app.downloads) as T
+                    override fun <T : ViewModel> create(modelClass: Class<T>): T = DownloaderViewModel(app.settings, app.downloads, app.diagnostics) as T
                 })
             val preferences by model.settings.collectAsStateWithLifecycle()
             val theme = preferences?.theme ?: AppThemeMode.LIGHT

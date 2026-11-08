@@ -10,6 +10,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalContext
+import com.barebonesdownloader.android.R
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
@@ -19,6 +21,8 @@ import com.barebonesdownloader.android.domain.model.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable fun SettingsScreen(draft: AppSettings, edit: ((AppSettings) -> AppSettings) -> Unit,
     pick: (DownloadKind) -> Unit, cancel: () -> Unit, save: () -> Unit) {
+    var notices by rememberSaveable { mutableStateOf(false) }
+    val context = LocalContext.current
     var section by rememberSaveable { mutableIntStateOf(0) }
     val errors = remember { mutableStateMapOf<String, Boolean>() }
     val sections = listOf("General", "Audio", "Video", "Metadata", "Appearance")
@@ -39,6 +43,8 @@ import com.barebonesdownloader.android.domain.model.*
                         }
                         Check("Append source URL to audio and video filenames", draft.appendSourceUrl) { value -> edit { it.copy(appendSourceUrl = value) } }
                         Text("Adds a sanitized, bounded URL suffix and shortens the title.")
+                        Text("Only save content you have rights or permission to download.")
+                        TextButton(onClick = { notices = true }) { Text("Open-source notices") }
                     }
                     1 -> {
                         Choice("Output format", draft.audioFormat, AudioFormat.entries, { it.label }) { value -> edit { it.copy(audioFormat = value).normalized() } }
@@ -83,6 +89,11 @@ import com.barebonesdownloader.android.domain.model.*
             Button(onClick = save, enabled = errors.values.none { it }, modifier = Modifier.weight(1f).heightIn(min = 48.dp).testTag("save_settings")) { Text("Save") }
         }
     }
+    if (notices) AlertDialog(onDismissRequest = { notices = false }, title = { Text("Open-source notices") },
+        text = { Column(Modifier.verticalScroll(rememberScrollState())) {
+            Text("Includes youtubedl-android 0.18.1 (GPL-3.0), FFmpeg, Python, QuickJS and AndroidX. No warranty. Corresponding source/build references and distribution obligations: THIRD_PARTY_NOTICES.md and docs/NATIVE_RUNTIME.md in the repository.")
+            Text(remember { context.resources.openRawResource(R.raw.native_gpl3).bufferedReader().use { it.readText() } })
+        } }, confirmButton = { TextButton(onClick = { notices = false }) { Text("Close") } })
 }
 @Composable private fun Check(label: String, checked: Boolean, tag: String = label, change: (Boolean) -> Unit) {
     Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag(tag).toggleable(checked, role = Role.Checkbox, onValueChange = change),

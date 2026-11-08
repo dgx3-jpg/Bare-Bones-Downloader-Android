@@ -3,6 +3,11 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+    inputs:
+      live:
+        description: 'Run opt-in public YouTube audio/video + SAF integration'
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -45,3 +50,40 @@ jobs:
           path: |
             app/build/reports/tests/
             app/build/reports/lint-results-debug.*
+  native-integration:
+    if: github.event_name == 'workflow_dispatch'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - uses: android-actions/setup-android@v4
+        with:
+          cmdline-tools-version: '13114758'
+          packages: 'platform-tools platforms;android-36 build-tools;35.0.0'
+          log-accepted-android-sdk-licenses: false
+      - name: Allow runner access to KVM
+        run: sudo setfacl -m u:$(id -un):rw /dev/kvm
+      - name: Native runtime, process cancellation and real audio/video integration
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          arch: x86_64
+          target: default
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader -noaudio -no-boot-anim -no-snapshot -memory 2048
+          script: bash tools/run-native-tests.sh '${{ inputs.live }}'
+      - name: Publish native verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-integration-reports
+          path: |
+            app/build/reports/androidTests/
+            app/build/outputs/androidTest-results/
+            native-logcat.txt

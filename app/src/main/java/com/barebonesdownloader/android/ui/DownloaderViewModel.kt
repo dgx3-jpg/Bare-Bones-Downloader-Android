@@ -5,17 +5,16 @@ import androidx.lifecycle.viewModelScope
 import com.barebonesdownloader.android.data.repository.DownloadRepository
 import com.barebonesdownloader.android.data.settings.SettingsRepository
 import com.barebonesdownloader.android.domain.model.*
-import com.barebonesdownloader.android.domain.usecase.validMediaUrl
+import com.barebonesdownloader.android.download.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import java.util.UUID
 
-class DownloaderViewModel(private val preferences: SettingsRepository, private val downloads: DownloadRepository) : ViewModel() {
+class DownloaderViewModel(private val preferences: SettingsRepository, private val downloads: DownloadRepository,
+    private val diagnostics: DownloadLog = DownloadLog()) : ViewModel() {
     val message = MutableStateFlow<String?>(null)
-    val log = MutableStateFlow("Milestone 1: placeholder queue only; no download engine is installed.\n")
+    val log = diagnostics.text
     val settings: StateFlow<AppSettings?> = preferences.settings.map<AppSettings, AppSettings?> { it }
         .catch { note("Could not load preferences. Please restart."); emit(null) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
@@ -23,39 +22,50 @@ class DownloaderViewModel(private val preferences: SettingsRepository, private v
     val url = MutableStateFlow("")
     val kind = MutableStateFlow(DownloadKind.AUDIO)
     val draft = MutableStateFlow<AppSettings?>(null)
-    fun note(text: String) {
-        val stamp = SimpleDateFormat("HH:mm:ss", Locale.UK).format(Date())
-        log.update { (it + "[$stamp] $text\n").takeLast(60_000) }
-    }
+    fun note(text: String) = diagnostics.add(text)
     fun beginSettings() { draft.value = settings.value }
     fun edit(change: (AppSettings) -> AppSettings) { draft.value = draft.value?.let(change) }
     fun discard() { draft.value = null }
+    private fun work(block: suspend () -> Unit) { viewModelScope.launch {
+        try { block() } catch (e: CancellationException) { throw e } catch (e: Exception) {
+            val error = sanitizeDiagnostic(e.message ?: "Operation failed. Try again."); message.value = error; note(error)
+        }
+    } }
     fun save(saved: () -> Unit) { val value = draft.value ?: return
-        viewModelScope.launch { try {
-            preferences.update { value }; draft.value = null; note("Settings saved."); saved()
-        } catch (e: CancellationException) { throw e } catch (_: Exception) { message.value = "Could not save settings." } }
+        work { preferences.update { value }; draft.value = null; note("Settings saved."); saved() }
     }
-    fun folderSelected(type: DownloadKind, uri: String, name: String, inSettings: Boolean) {
+    fun folderSelected(type: DownloadKind, uri: String, name: String, inSettings: Boolean, start: () -> Unit = {}) {
         if (inSettings) edit { it.withFolder(type, uri, name) }
-        else viewModelScope.launch { try { preferences.update { it.withFolder(type, uri, name) } }
-            catch (e: CancellationException) { throw e } catch (_: Exception) { message.value = "Could not save folder selection." } }
+        else work {
+            val blocked = items.value.firstOrNull { it.kind == type && it.status == DownloadStatus.BLOCKED }
+            preferences.update { it.withFolder(type, uri, name) }
+            if (blocked != null) { downloads.replaceDestination(type, blocked.destinationUri, uri); start() }
+        }
     }
-    fun add(): Boolean {
+    fun add(start: () -> Unit = {}): Boolean {
         val snapshot = settings.value ?: return false
         val type = kind.value
-        val tokens = url.value.trim().split(Regex("\\s+")).filter { it.isNotBlank() }
-        val valid = tokens.mapNotNull(::validMediaUrl)
-        if (valid.isEmpty()) { message.value = "Enter valid http or https links."; note("Rejected input: no valid HTTP(S) links."); return false }
+        val tokens = url.value.trim().split(Regex("\\s+")).filter(String::isNotBlank)
+        val parsed = tokens.map { raw -> raw to runCatching { YoutubeSource.parse(raw) }.getOrNull() }
+        if (parsed.none { it.second != null }) {
+            message.value = "Paste valid YouTube watch, Shorts or youtu.be single-video links."
+            note("Rejected input: no supported single-video YouTube links."); return false
+        }
         if (snapshot.folder(type) == null) return true
-        val rejected = tokens.filter { validMediaUrl(it) == null }
-        viewModelScope.launch {
-            valid.forEach { downloads.enqueue(it, type, snapshot) }
+        work {
+            val rejected = mutableListOf<String>(); var count = 0
+            parsed.forEach { (raw, source) ->
+                if (source == null) { rejected += raw; note("Rejected an unsupported or malformed link.") }
+                else try { downloads.enqueue(source.url, type, snapshot); count++ }
+                catch (e: IllegalArgumentException) { rejected += raw; note(e.message ?: "Could not queue this item.") }
+            }
             url.value = rejected.joinToString("\n")
-            if (rejected.isNotEmpty()) note("Rejected ${rejected.size} invalid link(s); retained in input.")
-            note("Added ${valid.size} ${type.label} placeholder(s); no download started.")
+            if (count > 0) { note("Queued $count ${type.label} item(s)."); start() }
+            if (rejected.isNotEmpty()) message.value = "Some links were rejected or already queued; they remain in the input."
         }
         return false
     }
-    fun cancelCurrent() { viewModelScope.launch { downloads.cancelCurrent(); note("Demo current item cancelled.") } }
-    fun clearWaiting() { viewModelScope.launch { downloads.clearWaiting(); note("Demo waiting items cleared.") } }
+    fun cancelCurrent(start: () -> Unit = {}) = work { downloads.cancelCurrent(); start() }
+    fun clearWaiting() = work { downloads.clearWaiting(); note("Waiting items cancelled.") }
+    fun retry(id: UUID, start: () -> Unit) = work { downloads.retry(id); start() }
 }

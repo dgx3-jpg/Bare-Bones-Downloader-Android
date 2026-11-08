@@ -5,6 +5,10 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
+import com.barebonesdownloader.android.download.DownloadForegroundService
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -45,13 +49,22 @@ import kotlinx.coroutines.withContext
     var pickerIsDraft by rememberSaveable { mutableStateOf(false) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (!granted) model.note("Notifications denied; active downloads remain visible in the app and Android's active-app controls.")
+    }
+    fun startDownloads() {
+        if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
+            notificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        runCatching { ContextCompat.startForegroundService(context, Intent(context, DownloadForegroundService::class.java)) }
+            .onFailure { model.message.value = "Could not start background work. Keep the app open and tap Resume queue."; model.note("Foreground start failed: ${it.javaClass.simpleName}") }
+    }
     val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri != null) {
             try {
                 context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
                 scope.launch {
                     val info = withContext(Dispatchers.IO) { SafFolders.writable(context, uri.toString()) to SafFolders.name(context, uri) }
-                    if (info.first) model.folderSelected(pickerKind, uri.toString(), info.second, pickerIsDraft)
+                    if (info.first) model.folderSelected(pickerKind, uri.toString(), info.second, pickerIsDraft, ::startDownloads)
                     else model.message.value = "Folder is not writable. Choose another folder."
                 }
             } catch (_: SecurityException) { model.message.value = "Folder permission could not be saved. Choose another folder." }
@@ -69,11 +82,12 @@ import kotlinx.coroutines.withContext
             modifier = Modifier.testTag("open_settings")) { Icon(Icons.Default.Settings, contentDescription = "Settings") }
     }) }, snackbarHost = { SnackbarHost(snackbar) }) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
-            Text("Milestone 1 shell — placeholder data; downloads are not implemented.", style = MaterialTheme.typography.bodySmall,
+            Text("YouTube audio/video · Metadata/ReplayGain and size caps arrive in later milestones.", style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
             NavHost(nav, startDestination = "main", modifier = Modifier.weight(1f)) {
                 composable("main") { MainScreen(url, { model.url.value = it }, kind, { model.kind.value = it }, settings,
-                    items, log, { pick(kind, false) }, { prompt = model.add() }, model::cancelCurrent, model::clearWaiting,
+                    items, log, { pick(kind, false) }, { prompt = model.add(::startDownloads) }, { model.cancelCurrent(::startDownloads) }, model::clearWaiting,
+                    ::startDownloads, { model.retry(it.id, ::startDownloads) }, { pick(it.kind, false) },
                     { (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("Downloader log", log)) }) }
                 composable("settings") {
                     draft?.let { current -> SettingsScreen(current, model::edit, { pick(it, true) }, ::discard, {
@@ -92,7 +106,7 @@ import kotlinx.coroutines.withContext
         }
     }
     if (prompt) AlertDialog(onDismissRequest = { prompt = false }, title = { Text("Choose ${if (kind == DownloadKind.AUDIO) "audio" else "video"} folder") },
-        text = { Text("Choose a destination for this type, then tap Queue again. Cancelling preserves your links. No media is saved by this shell.") },
+        text = { Text("Choose a destination for this type, then tap Queue again. Cancelling preserves your links.") },
         confirmButton = { TextButton(onClick = { prompt = false; pick(kind, false) }) { Text("Choose folder") } },
         dismissButton = { TextButton(onClick = { prompt = false }) { Text("Cancel") } })
 }
